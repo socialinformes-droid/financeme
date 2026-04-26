@@ -37,6 +37,41 @@ import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import type { TransactionRow, CardRow } from '@/lib/supabase/types';
 
+type SelectOption = { value: string; label: string };
+
+function LabeledSelect({
+  label,
+  value,
+  onValueChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  options: SelectOption[];
+}) {
+  const current = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <Select value={value} onValueChange={(v) => onValueChange(v ?? options[0].value)}>
+      <SelectTrigger className="w-full">
+        <span className="flex items-center gap-1 truncate">
+          <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider shrink-0">
+            {label}
+          </span>
+          <span className="text-foreground/85 truncate">{current.label}</span>
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 type Filters = {
   q: string;
   type: 'all' | 'income' | 'expense';
@@ -221,54 +256,46 @@ export function TransactionsView({
             onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
           />
         </div>
-        <Select
+        <LabeledSelect
+          label="Tipo"
           value={filters.type}
           onValueChange={(v) => setFilters((f) => ({ ...f, type: (v as Filters['type']) ?? 'all' }))}
-        >
-          <SelectTrigger className="w-full"><SelectValue placeholder="Tipo" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tipo: todos</SelectItem>
-            <SelectItem value="income">Entradas</SelectItem>
-            <SelectItem value="expense">Saídas</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
+          options={[
+            { value: 'all', label: 'todos' },
+            { value: 'income', label: 'Entradas' },
+            { value: 'expense', label: 'Saídas' },
+          ]}
+        />
+        <LabeledSelect
+          label="Método"
           value={filters.method}
           onValueChange={(v) => setFilters((f) => ({ ...f, method: (v as Filters['method']) ?? 'all' }))}
-        >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Método: todos</SelectItem>
-            <SelectItem value="credit">Crédito</SelectItem>
-            <SelectItem value="debit">Débito</SelectItem>
-            <SelectItem value="pix">PIX</SelectItem>
-            <SelectItem value="cash">Dinheiro</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
+          options={[
+            { value: 'all', label: 'todos' },
+            { value: 'credit', label: 'Crédito' },
+            { value: 'debit', label: 'Débito' },
+            { value: 'pix', label: 'PIX' },
+            { value: 'cash', label: 'Dinheiro' },
+          ]}
+        />
+        <LabeledSelect
+          label="Categoria"
           value={filters.category}
           onValueChange={(v) => setFilters((f) => ({ ...f, category: v ?? ALL }))}
-        >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Categoria: todas</SelectItem>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
+          options={[
+            { value: ALL, label: 'todas' },
+            ...CATEGORIES.map((c) => ({ value: c, label: c })),
+          ]}
+        />
+        <LabeledSelect
+          label="Mês"
           value={filters.expenseMonth}
           onValueChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v ?? ALL }))}
-        >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Mês: todos</SelectItem>
-            {months.map((m) => (
-              <SelectItem key={m} value={m}>{formatMonthBR(m)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={[
+            { value: ALL, label: 'todos' },
+            ...months.map((m) => ({ value: m, label: formatMonthBR(m) })),
+          ]}
+        />
       </div>
 
       {/* Tabela */}
