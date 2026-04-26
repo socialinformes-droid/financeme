@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/auto-login');
+  if (!user) redirect('/login');
 
   try {
     await seedInitialData(supabase, user.id);
@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-svh flex-col md:flex-row">
-      <Sidebar availableYears={availableYears} />
+      <Sidebar availableYears={availableYears} userEmail={user.email} />
       <MobileHeader availableYears={availableYears} />
       <main className="flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">{children}</div>

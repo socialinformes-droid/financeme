@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { Database } from '@/lib/supabase/types';
 
-const PUBLIC_PATHS = ['/auto-login'];
+const PUBLIC_PATHS = ['/login', '/callback', '/auto-login'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -38,8 +38,15 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = '/auto-login';
-    url.searchParams.set('next', pathname);
+    url.pathname = '/login';
+    if (pathname !== '/') url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // Já logado tentando acessar /login → manda pro dashboard
+  if (user && pathname === '/login') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
     return NextResponse.redirect(url);
   }
 

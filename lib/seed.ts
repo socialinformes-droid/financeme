@@ -12,10 +12,17 @@ export type SeedResult = {
 };
 
 /**
- * Idempotente: só roda se `recurring_income` do usuário estiver vazia.
- * Popula com os 137 lançamentos reais da planilha 2026 + lista de compras.
+ * Seed só roda em desenvolvimento ou quando user é o "owner" pessoal
+ * (configurado via env SEED_OWNER_USER_ID). Multi-tenant: novos users
+ * começam com DB vazio e populam tudo manualmente.
  */
 export async function seedInitialData(supabase: SB, userId: string): Promise<SeedResult> {
+  const ownerUserId = process.env.SEED_OWNER_USER_ID;
+  // Em produção: só roda se userId === SEED_OWNER_USER_ID. Em dev (sem env): roda pra todo mundo.
+  if (process.env.NODE_ENV === 'production' && ownerUserId && userId !== ownerUserId) {
+    return { skipped: true, recurringIncome: 0, transactions: 0, shoppingItems: 0 };
+  }
+
   const { count, error: countError } = await supabase
     .from('recurring_income')
     .select('*', { count: 'exact', head: true })

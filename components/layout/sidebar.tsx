@@ -10,10 +10,13 @@ import {
   ShoppingBag,
   TrendingUp,
   Settings,
+  LogOut,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { YearSwitcher } from '@/components/layout/year-switcher';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { createClient } from '@/lib/supabase/client';
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phase?: number };
 
@@ -27,10 +30,16 @@ const NAV: NavItem[] = [
   { href: '/settings', label: 'Edição', icon: Settings },
 ];
 
-export function Sidebar({ availableYears }: { availableYears: number[] }) {
+export function Sidebar({
+  availableYears,
+  userEmail,
+}: {
+  availableYears: number[];
+  userEmail?: string | null;
+}) {
   return (
     <aside className="hidden md:flex w-60 shrink-0 sticky top-0 h-svh flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
-      <SidebarContent availableYears={availableYears} />
+      <SidebarContent availableYears={availableYears} userEmail={userEmail} />
     </aside>
   );
 }
@@ -38,12 +47,20 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
 export function SidebarContent({
   availableYears,
   onNavigate,
-  isMobile = false,
+  userEmail,
 }: {
   availableYears: number[];
   onNavigate?: () => void;
   isMobile?: boolean;
+  userEmail?: string | null;
 }) {
+  const router = useRouter();
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  };
   const pathname = usePathname();
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -120,14 +137,25 @@ export function SidebarContent({
       {/* Footer */}
       <div className="px-5 py-4 border-t border-rule/40 space-y-3 shrink-0">
         <ThemeToggle />
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-            Almanaque pessoal
-          </p>
-          <p className="mt-1 text-[11px] text-muted-foreground/60 italic font-display">
-            ano {new Date().getFullYear()}
-          </p>
-        </div>
+
+        {userEmail && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+              Editor
+            </p>
+            <p className="text-[11px] font-mono text-foreground/80 truncate" title={userEmail}>
+              {userEmail}
+            </p>
+            <button
+              type="button"
+              onClick={signOut}
+              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-3 w-3" />
+              <span>Sair</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
