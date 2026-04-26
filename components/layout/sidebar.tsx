@@ -21,7 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phase?: number };
 
 const NAV: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/transactions', label: 'Lançamentos', icon: ArrowDownUp },
   { href: '/cards', label: 'Cartões', icon: CreditCard },
   { href: '/installments', label: 'Parcelas', icon: ListChecks },

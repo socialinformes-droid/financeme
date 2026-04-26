@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import type { Database } from '@/lib/supabase/types';
 
 const PUBLIC_PATHS = ['/login', '/callback', '/auto-login'];
+const ROOT_PATHS = ['/'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -35,18 +36,28 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isRoot = ROOT_PATHS.includes(pathname);
+
+  // / é landing pública, mas se logado redireciona pra /dashboard
+  if (isRoot) {
+    if (user) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    if (pathname !== '/') url.searchParams.set('next', pathname);
+    url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 
-  // Já logado tentando acessar /login → manda pro dashboard
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
