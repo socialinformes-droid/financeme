@@ -29,7 +29,7 @@ const NAV: NavItem[] = [
 
 export function Sidebar({ availableYears }: { availableYears: number[] }) {
   return (
-    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
+    <aside className="hidden md:flex w-60 shrink-0 sticky top-0 h-svh flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
       <SidebarContent availableYears={availableYears} />
     </aside>
   );
