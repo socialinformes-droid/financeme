@@ -23,8 +23,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Caderno Financeiro",
+  title: "Financeme · Caderno Financeiro",
   description: "Almanaque pessoal de finanças",
+  applicationName: "Financeme",
 };
 
 export default function RootLayout({
