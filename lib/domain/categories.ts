@@ -9,6 +9,7 @@ export const CATEGORIES = [
   'Cuidados',
   'Transporte',
   'Recargas',
+  'Educação',
   'Impostos',
   'Alimentação',
   'Moradia',
@@ -31,6 +32,7 @@ export const CATEGORY_COLOR: Record<Category, string> = {
   'Cuidados':    '#a85e7a', // rose-velho
   'Transporte':  '#4e6e8e', // azul-aço
   'Recargas':    '#5e6e8e', // azul-acinzentado
+  'Educação':    '#8a6240', // marrom-claro
   'Impostos':    '#7a7268', // taupe
   'Alimentação': '#a8862e', // mostarda
   'Moradia':     '#6e7a4e', // oliva
