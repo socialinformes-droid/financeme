@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-export default function LoginPage() {
-  const [loading, setLoading] = useState(false);
+function LoginErrorToast() {
   const searchParams = useSearchParams();
-
   useEffect(() => {
     const err = searchParams.get('error');
     if (err) toast.error(`Falha no login: ${err}`);
   }, [searchParams]);
+  return null;
+}
+
+export default function LoginPage() {
+  const [loading, setLoading] = useState(false);
 
   const signInGoogle = async () => {
     setLoading(true);
@@ -36,6 +39,9 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-svh flex items-center justify-center px-4">
+      <Suspense fallback={null}>
+        <LoginErrorToast />
+      </Suspense>
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <p className="eyebrow">Edição diária</p>
