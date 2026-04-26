@@ -404,7 +404,7 @@ export function BulkTransactionsForm({ userId, cards, onDone }: BulkTransactions
           <p className="text-xs text-muted-foreground">Total</p>
           <p
             className={`font-mono font-semibold ${
-              type === 'income' ? 'text-green-400' : 'text-red-400'
+              type === 'income' ? 'text-money-up' : 'text-money-down'
             }`}
           >
             {formatBRL(type === 'income' ? totals.sum : -totals.sum)}

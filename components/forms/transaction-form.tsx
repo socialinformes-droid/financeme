@@ -362,7 +362,7 @@ export function TransactionForm({ userId, cards, onDone, editing }: TransactionF
         )}
 
         {isEdit && editing?.is_installment && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-300/80">
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80">
             Esta é a parcela {editing.installment_number}/{editing.total_installments}.
             A edição afeta só esta linha — outras parcelas do grupo permanecem inalteradas.
           </div>

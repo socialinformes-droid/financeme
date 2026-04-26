@@ -72,23 +72,23 @@ export function PivotTable({
   const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
   return (
-    <div className="rounded-md border bg-card">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
+    <div className="rounded-md border border-rule/70 bg-card overflow-hidden">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 border-b-2 border-double border-rule/80 bg-paper-dark/40">
         <div>
-          <h3 className="text-sm font-medium">Visão mensal por categoria</h3>
-          <p className="text-xs text-muted-foreground">
-            {monthAxis === 'expense' ? 'Mês do gasto' : 'Mês da fatura/débito'}
-            {' · '}
+          <p className="eyebrow">
+            {monthAxis === 'expense' ? 'Cruzamento por mês de competência' : 'Cruzamento por mês de débito'}
+          </p>
+          <p className="text-xs text-muted-foreground italic mt-0.5">
             {formatMonthBR(months[0])} → {formatMonthBR(months[months.length - 1])}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg bg-muted p-0.5 text-xs self-start">
+        <div className="flex gap-1 rounded-full bg-paper-dark/60 p-0.5 text-[11px] self-start border border-rule/60">
           <button
             onClick={() => setMonthAxis('expense')}
             className={cn(
-              'px-2.5 py-1 rounded-md transition-colors',
+              'px-3 py-1 rounded-full transition-colors',
               monthAxis === 'expense'
-                ? 'bg-background text-foreground shadow-sm font-medium'
+                ? 'bg-card text-foreground font-medium shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
@@ -97,9 +97,9 @@ export function PivotTable({
           <button
             onClick={() => setMonthAxis('billing')}
             className={cn(
-              'px-2.5 py-1 rounded-md transition-colors',
+              'px-3 py-1 rounded-full transition-colors',
               monthAxis === 'billing'
-                ? 'bg-background text-foreground shadow-sm font-medium'
+                ? 'bg-card text-foreground font-medium shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
@@ -111,32 +111,34 @@ export function PivotTable({
       <div className="overflow-x-auto">
         <table className="w-full text-xs font-mono border-separate border-spacing-0">
           <thead>
-            <tr className="text-muted-foreground">
+            <tr>
               <th
-                className="sticky left-0 z-20 bg-muted/95 backdrop-blur px-3 py-2 text-left font-medium border-b min-w-[180px]"
+                className="sticky left-0 z-20 bg-paper-dark/95 backdrop-blur px-4 py-2.5 text-left font-medium border-b-2 border-rule/80 min-w-[200px] text-foreground"
               >
-                Categoria
+                <span className="eyebrow">Motivo</span>
               </th>
               {months.map((m) => (
                 <th
                   key={m}
                   className={cn(
-                    'px-2 py-2 text-right font-medium whitespace-nowrap border-b bg-muted/50',
-                    m === todayKey && 'text-foreground bg-muted',
+                    'px-2 py-2.5 text-right font-medium whitespace-nowrap border-b-2 border-rule/80 text-foreground',
+                    m === todayKey && 'bg-accent/30',
                   )}
                 >
-                  {formatMonthBR(m)}
+                  <span className="font-display italic font-medium not-italic">
+                    {formatMonthBR(m)}
+                  </span>
                 </th>
               ))}
-              <th className="px-3 py-2 text-right font-medium whitespace-nowrap bg-muted/70 border-b">
-                Total
+              <th className="px-3 py-2.5 text-right font-medium whitespace-nowrap bg-paper-dark/60 border-b-2 border-rule/80 text-foreground">
+                <span className="eyebrow">Total</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {expenseSection.rows.length > 0 && (
               <Section
-                label="⬆ Saídas"
+                label="Saídas"
                 color="red"
                 rows={expenseSection.rows}
                 totalsByMonth={expenseSection.totalsByMonth}
@@ -148,7 +150,7 @@ export function PivotTable({
 
             {incomeSection.rows.length > 0 && (
               <Section
-                label="⬇ Entradas"
+                label="Entradas"
                 color="green"
                 rows={incomeSection.rows}
                 totalsByMonth={incomeSection.totalsByMonth}
@@ -158,17 +160,17 @@ export function PivotTable({
               />
             )}
 
-            <tr className="bg-muted/40 font-semibold border-t-2 border-foreground/30">
-              <td className="sticky left-0 z-10 bg-muted/95 backdrop-blur px-3 py-2.5 border-t-2 border-foreground/30">
-                Total geral
+            <tr className="bg-paper-dark/50 font-medium border-double">
+              <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-3 border-t-2 border-double border-rule">
+                <span className="font-display text-sm italic">Total geral</span>
               </td>
               {totalsByMonth.map((v, i) => (
                 <td
                   key={months[i]}
                   className={cn(
-                    'px-2 py-2.5 text-right tabular-nums border-t-2 border-foreground/30',
-                    months[i] === todayKey && 'bg-muted/60',
-                    v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-muted-foreground/50',
+                    'px-2 py-3 text-right tabular-nums border-t-2 border-double border-rule font-medium text-sm',
+                    months[i] === todayKey && 'bg-accent/40',
+                    v > 0 ? 'text-money-up' : v < 0 ? 'text-money-down' : 'text-muted-foreground/50',
                   )}
                 >
                   {v === 0 ? '—' : formatNumber(v)}
@@ -176,8 +178,8 @@ export function PivotTable({
               ))}
               <td
                 className={cn(
-                  'px-3 py-2.5 text-right tabular-nums bg-muted/80 border-t-2 border-foreground/30',
-                  totalGeral > 0 ? 'text-green-400' : totalGeral < 0 ? 'text-red-400' : '',
+                  'px-3 py-3 text-right tabular-nums bg-paper-dark/80 border-t-2 border-double border-rule font-semibold text-sm',
+                  totalGeral > 0 ? 'text-money-up' : totalGeral < 0 ? 'text-money-down' : '',
                 )}
               >
                 {formatNumber(totalGeral)}
@@ -188,7 +190,7 @@ export function PivotTable({
       </div>
 
       {grouped.outOfRange !== 0 && (
-        <p className="px-4 py-2 text-[11px] text-muted-foreground border-t">
+        <p className="px-5 py-2 text-[11px] text-muted-foreground/80 italic border-t border-rule/40">
           {formatNumber(grouped.outOfRange)} fora da janela
         </p>
       )}
@@ -240,17 +242,24 @@ function Section({
   todayKey: string;
 }) {
   const [open, setOpen] = useState(true);
-  const colorClass = color === 'red' ? 'text-red-400' : 'text-green-400';
+  const colorClass = color === 'red' ? 'text-money-down' : 'text-money-up';
+  const arrow = color === 'red' ? '↑' : '↓';
   return (
     <>
       <tr
-        className="bg-muted/30 hover:bg-muted/40 cursor-pointer transition-colors"
+        className="bg-paper-dark/40 hover:bg-paper-dark/60 cursor-pointer transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <td className="sticky left-0 z-10 bg-muted/95 backdrop-blur px-3 py-2 font-medium">
-          <span className="flex items-center gap-1.5">
-            {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            <span className={colorClass}>{label}</span>
+        <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2 font-medium">
+          <span className="flex items-center gap-2">
+            {open ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            )}
+            <span className={cn('font-display italic text-sm', colorClass)}>
+              {arrow} {label}
+            </span>
           </span>
         </td>
         {months.map((m) => {
@@ -260,26 +269,26 @@ function Section({
               key={m}
               className={cn(
                 'px-2 py-2 text-right tabular-nums font-medium',
-                m === todayKey && 'bg-muted/40',
-                v === 0 ? 'text-muted-foreground/50' : colorClass,
+                m === todayKey && 'bg-accent/30',
+                v === 0 ? 'text-muted-foreground/40' : colorClass,
               )}
             >
               {v === 0 ? '—' : formatNumber(v)}
             </td>
           );
         })}
-        <td className={cn('px-3 py-2 text-right tabular-nums font-semibold bg-muted/50', colorClass)}>
+        <td className={cn('px-3 py-2 text-right tabular-nums font-semibold bg-paper-dark/60', colorClass)}>
           {formatNumber(grandTotal)}
         </td>
       </tr>
 
       {open &&
         rows.map((row) => (
-          <tr key={`${label}-${row.category}`} className="hover:bg-muted/15 transition-colors">
-            <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-8">
-              <span className="inline-flex items-center gap-2">
+          <tr key={`${label}-${row.category}`} className="hover:bg-paper-dark/15 transition-colors">
+            <td className="sticky left-0 z-10 bg-card px-4 py-2 pl-9">
+              <span className="inline-flex items-center gap-2.5">
                 <span
-                  className="inline-block h-2 w-2 rounded-full shrink-0"
+                  className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
                   style={{
                     background:
                       CATEGORY_COLOR[row.category as keyof typeof CATEGORY_COLOR] ?? '#737373',
@@ -294,20 +303,20 @@ function Section({
                 <td
                   key={m}
                   className={cn(
-                    'px-2 py-1.5 text-right tabular-nums',
-                    m === todayKey && 'bg-muted/30',
+                    'px-2 py-2 text-right tabular-nums',
+                    m === todayKey && 'bg-accent/20',
                     v === 0
-                      ? 'text-muted-foreground/40'
+                      ? 'text-muted-foreground/30'
                       : v < 0
-                        ? 'text-red-400/85'
-                        : 'text-green-400/85',
+                        ? 'text-money-down/85'
+                        : 'text-money-up/85',
                   )}
                 >
-                  {v === 0 ? '—' : formatNumber(v)}
+                  {v === 0 ? '·' : formatNumber(v)}
                 </td>
               );
             })}
-            <td className={cn('px-3 py-1.5 text-right tabular-nums bg-muted/40 font-medium', colorClass)}>
+            <td className={cn('px-3 py-2 text-right tabular-nums bg-paper-dark/30 font-medium', colorClass)}>
               {formatNumber(row.total)}
             </td>
           </tr>

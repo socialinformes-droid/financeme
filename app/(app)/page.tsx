@@ -77,19 +77,25 @@ export default async function Dashboard() {
     .limit(3);
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
-          <p className="text-sm text-muted-foreground">
-            {formatMonthBR(currentMonthKey)} · {year}
+    <div className="space-y-10">
+      {/* Cabeçalho editorial */}
+      <header className="space-y-2 pb-6 border-b border-rule/60">
+        <p className="eyebrow">Volume {year} · Edição mensal</p>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <h2 className="headline text-5xl md:text-6xl font-light tracking-tight leading-none">
+            <span className="italic font-extralight text-foreground/70">de</span>{' '}
+            {formatMonthBR(currentMonthKey).replace('/', ' de 20')}
+          </h2>
+          <p className="text-xs text-muted-foreground font-mono">
+            {today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
           </p>
         </div>
       </header>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard label={`Entradas — ${formatMonthBR(currentMonthKey)}`} value={monthIncome} accent="green" />
-        <SummaryCard label={`Saídas — ${formatMonthBR(currentMonthKey)}`} value={-monthExpense} accent="red" />
+      {/* Manchetes do mês */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-rule/60 border border-rule/60 rounded-lg overflow-hidden">
+        <SummaryCard label="Entradas" value={monthIncome} accent="green" />
+        <SummaryCard label="Saídas" value={-monthExpense} accent="red" />
         <SummaryCard
           label="Saldo do mês"
           value={monthBalance}
@@ -102,11 +108,21 @@ export default async function Dashboard() {
         />
       </section>
 
-      <section>
+      <section className="space-y-3">
+        <SectionHeader
+          eyebrow="Caderno principal"
+          title="Visão por categoria"
+          subtitle="Linhas mensais cruzadas com o motivo do lançamento"
+        />
         <PivotTable data={pivotRows} startMonth={`${year}-01-01`} monthsCount={12} />
       </section>
 
-      <section>
+      <section className="space-y-3">
+        <SectionHeader
+          eyebrow="Suplemento"
+          title="Em gráficos"
+          subtitle="Mesma história, contada de outro jeito"
+        />
         <ChartsSection
           transactions={chartTxs}
           yearStart={startOfYear}
@@ -114,72 +130,106 @@ export default async function Dashboard() {
         />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Parcelas do mês</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcomingInstallments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma parcela aberta</p>
-            ) : (
-              <ul className="divide-y divide-border/60">
-                {upcomingInstallments.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between py-2 text-sm">
-                    <div>
-                      <p className="font-medium">{t.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t.installment_number}/{t.total_installments} ·{' '}
-                        {formatDateBR(t.transaction_date)}
-                      </p>
-                    </div>
-                    <span className="font-mono text-red-400">{formatBRL(t.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Lista de compras — alta prioridade</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(shoppingTop ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem itens prioritários</p>
-            ) : (
-              <ul className="space-y-2">
-                {(shoppingTop as ShoppingItemRow[]).map((s) => (
-                  <li key={s.id} className="flex items-start justify-between gap-3 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {s.store_name ?? '—'} · {s.category ?? '—'}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-mono text-xs">
-                        {formatBRL(s.price_min ?? 0)}–{formatBRL(s.price_max ?? 0)}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <article>
+          <SectionHeader eyebrow="Agenda" title="Parcelas do mês" />
+          <Card className="rounded-md border-rule/70 shadow-none">
+            <CardContent className="pt-5">
+              {upcomingInstallments.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Nada em aberto este mês.
+                </p>
+              ) : (
+                <ul className="divide-y divide-rule/40">
+                  {upcomingInstallments.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
+                      <div>
+                        <p className="font-medium">{t.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          parcela {t.installment_number}/{t.total_installments} ·{' '}
+                          {formatDateBR(t.transaction_date)}
+                        </p>
+                      </div>
+                      <span className="font-mono tabular-nums text-money-down">
+                        {formatBRL(t.amount)}
                       </span>
-                      {s.reference_url && (
-                        <a
-                          href={s.reference_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-2 inline-flex"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                        </a>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </article>
+
+        <article>
+          <SectionHeader eyebrow="Classificados" title="Pra comprar" subtitle="Alta prioridade" />
+          <Card className="rounded-md border-rule/70 shadow-none">
+            <CardContent className="pt-5">
+              {(shoppingTop ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Sem itens prioritários no momento.
+                </p>
+              ) : (
+                <ul className="divide-y divide-rule/40">
+                  {(shoppingTop as ShoppingItemRow[]).map((s) => (
+                    <li key={s.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{s.name}</p>
+                        <p className="text-xs text-muted-foreground italic">
+                          {s.store_name ?? '—'} · {s.category ?? '—'}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono tabular-nums text-xs text-foreground/80">
+                          {formatBRL(s.price_min ?? 0)}–{formatBRL(s.price_max ?? 0)}
+                        </span>
+                        {s.reference_url && (
+                          <a
+                            href={s.reference_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-2 inline-flex"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </article>
       </section>
+
+      <footer className="text-center pt-4 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground/50">
+          ❦ Fim da edição ❦
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-3 pb-2 border-b border-rule/40 mb-3">
+      <div>
+        <p className="eyebrow mb-1">{eyebrow}</p>
+        <h3 className="headline text-2xl font-medium tracking-tight">{title}</h3>
+      </div>
+      {subtitle && (
+        <p className="text-xs italic text-muted-foreground pb-1">{subtitle}</p>
+      )}
     </div>
   );
 }
@@ -195,16 +245,14 @@ function SummaryCard({
 }) {
   const colorClass =
     accent === 'green'
-      ? 'text-green-400'
+      ? 'text-money-up'
       : accent === 'red'
-        ? 'text-red-400'
+        ? 'text-money-down'
         : 'text-foreground';
   return (
-    <Card>
-      <CardContent className="pt-5">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`mt-1 font-mono text-xl font-semibold ${colorClass}`}>{formatBRL(value)}</p>
-      </CardContent>
-    </Card>
+    <div className="bg-card px-5 py-4">
+      <p className="eyebrow">{label}</p>
+      <p className={`mt-2 font-mono text-2xl tabular-nums ${colorClass}`}>{formatBRL(value)}</p>
+    </div>
   );
 }

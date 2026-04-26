@@ -16,18 +16,19 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+// Paleta editorial — tons terrosos, profundos, sem neon
 export const CATEGORY_COLOR: Record<Category, string> = {
-  'Salário': '#22c55e',
-  'Cartão': '#8B5CF6',
-  'Assinatura': '#06b6d4',
-  'Família': '#f97316',
-  'Saúde': '#ef4444',
-  'Cuidados': '#ec4899',
-  'Transporte': '#0ea5e9',
-  'Impostos': '#a3a3a3',
-  'Alimentação': '#eab308',
-  'Moradia': '#84cc16',
-  'Lazer': '#a855f7',
-  'Manual': '#64748b',
-  'Outros': '#737373',
+  'Salário':     '#5a7d4f', // forest
+  'Cartão':      '#6b4f7a', // plum
+  'Assinatura':  '#3f7a7a', // teal
+  'Família':     '#b76e54', // terracota
+  'Saúde':       '#a84e3e', // rust
+  'Cuidados':    '#a85e7a', // rose-velho
+  'Transporte':  '#4e6e8e', // azul-aço
+  'Impostos':    '#7a7268', // taupe
+  'Alimentação': '#a8862e', // mostarda
+  'Moradia':     '#6e7a4e', // oliva
+  'Lazer':       '#7a5a9a', // ametista
+  'Manual':      '#5a5e68', // grafite
+  'Outros':      '#8a8580', // cinza-claro
 };

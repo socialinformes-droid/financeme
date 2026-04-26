@@ -130,7 +130,7 @@ export function CalculatorFab() {
                     className={cn(
                       'whitespace-pre overflow-hidden text-ellipsis',
                       l.value === null && l.raw.trim() && 'text-destructive/70',
-                      l.value !== null && (l.value < 0 ? 'text-red-400' : l.value > 0 ? 'text-green-400' : 'text-muted-foreground'),
+                      l.value !== null && (l.value < 0 ? 'text-money-down' : l.value > 0 ? 'text-money-up' : 'text-muted-foreground'),
                     )}
                   >
                     {l.raw.trim() === ''
@@ -149,7 +149,7 @@ export function CalculatorFab() {
             <span
               className={cn(
                 'font-mono text-base font-semibold tabular-nums',
-                total > 0 ? 'text-green-400' : total < 0 ? 'text-red-400' : 'text-foreground',
+                total > 0 ? 'text-money-up' : total < 0 ? 'text-money-down' : 'text-foreground',
               )}
             >
               {formatBRL(total)}

@@ -129,13 +129,15 @@ export function TransactionsView({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 pb-4 border-b border-rule/60">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Transações</h2>
-          <p className="text-sm text-muted-foreground">
-            {totals.count} lançamentos · entradas {formatBRL(totals.income)} · saídas{' '}
-            {formatBRL(totals.expense)} · saldo{' '}
-            <span className={totals.balance >= 0 ? 'text-green-400' : 'text-red-400'}>
+          <p className="eyebrow">Caderno de</p>
+          <h2 className="headline text-4xl font-light tracking-tight">Lançamentos</h2>
+          <p className="text-xs italic text-muted-foreground mt-1.5">
+            {totals.count} {totals.count === 1 ? 'linha' : 'linhas'} · entradas{' '}
+            <span className="font-mono not-italic">{formatBRL(totals.income)}</span> · saídas{' '}
+            <span className="font-mono not-italic">{formatBRL(totals.expense)}</span> · saldo{' '}
+            <span className={`font-mono not-italic ${totals.balance >= 0 ? 'text-money-up' : 'text-money-down'}`}>
               {formatBRL(totals.balance)}
             </span>
           </p>
@@ -311,7 +313,7 @@ export function TransactionsView({
                   <TableCell>{formatMonthBR(t.billing_month)}</TableCell>
                   <TableCell
                     className={`text-right font-mono ${
-                      t.type === 'income' ? 'text-green-400' : 'text-red-400'
+                      t.type === 'income' ? 'text-money-up' : 'text-money-down'
                     }`}
                   >
                     {formatBRL(t.amount)}
@@ -346,7 +348,7 @@ export function TransactionsView({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-red-400 hover:text-red-300"
+                        className="h-7 w-7 text-money-down hover:text-red-300"
                         title="Excluir"
                         onClick={() => remove(t)}
                         disabled={pending}

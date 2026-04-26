@@ -25,21 +25,23 @@ export function CategoryPieChart({ data }: { data: CategorySlice[] }) {
             innerRadius={48}
             outerRadius={86}
             paddingAngle={2}
-            stroke="oklch(0.205 0 0)"
+            stroke="oklch(0.992 0.005 90)"
+            strokeWidth={2}
           >
             {data.map((d) => (
               <Cell
                 key={d.category}
-                fill={CATEGORY_COLOR[d.category as keyof typeof CATEGORY_COLOR] ?? '#737373'}
+                fill={CATEGORY_COLOR[d.category as keyof typeof CATEGORY_COLOR] ?? '#8a8580'}
               />
             ))}
           </Pie>
           <Tooltip
             contentStyle={{
-              background: 'oklch(0.205 0 0)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
+              background: 'oklch(0.992 0.005 90)',
+              border: '1px solid oklch(0.86 0.012 82)',
+              borderRadius: 6,
               fontSize: 12,
+              fontFamily: 'var(--font-sans)',
             }}
             formatter={(value) => formatBRL(Number(value))}
           />
