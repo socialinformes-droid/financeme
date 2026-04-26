@@ -55,17 +55,26 @@ export function SidebarContent({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Masthead — fixo no topo */}
-      <div className="px-5 pt-6 pb-4 border-b border-rule/40 shrink-0">
+      {/* Masthead */}
+      <div className="px-5 pt-7 pb-5 border-b border-rule/40 shrink-0">
         <p className="eyebrow mb-1">Edição diária</p>
-        <h1 className="headline text-[26px] leading-none tracking-tight font-medium">
+        <h1 className="headline text-[28px] leading-none tracking-tight font-medium">
           Caderno
           <span className="block italic font-light text-foreground/70 -mt-0.5">Financeiro</span>
         </h1>
+        <p className="mt-3 text-[11px] font-mono text-muted-foreground/80 lowercase first-letter:uppercase">
+          {today}
+        </p>
       </div>
 
-      {/* Nav — sempre visível, sem scroll */}
-      <nav className="px-3 py-3 shrink-0">
+      {/* Year switcher */}
+      <div className="px-5 py-4 border-b border-rule/40 shrink-0">
+        <YearSwitcher availableYears={availableYears} defaultYear={defaultYear} />
+      </div>
+
+      {/* Nav — fixa, sem scroll */}
+      <nav className="px-3 py-4 shrink-0">
+        <p className="eyebrow px-2 mb-2">Seções</p>
         <ul className="space-y-0.5">
           {NAV.map((item) => {
             const active = pathname === item.href;
@@ -83,7 +92,7 @@ export function SidebarContent({
                     onNavigate?.();
                   }}
                   className={cn(
-                    'group flex items-center gap-3 rounded-md px-2.5 py-1.5 text-sm transition-colors',
+                    'group flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors',
                     active
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-foreground/75 hover:bg-sidebar-accent/50 hover:text-foreground',
@@ -108,17 +117,15 @@ export function SidebarContent({
       {/* Espaçador flexível */}
       <div className="flex-1 min-h-0" />
 
-      {/* Footer com tudo: tema, ano, data */}
-      <div className="px-5 py-4 border-t border-rule/40 space-y-4 shrink-0">
+      {/* Footer */}
+      <div className="px-5 py-4 border-t border-rule/40 space-y-3 shrink-0">
         <ThemeToggle />
-
         <div>
-          <YearSwitcher availableYears={availableYears} defaultYear={defaultYear} />
-        </div>
-
-        <div>
-          <p className="text-[10px] font-mono text-muted-foreground/70 lowercase first-letter:uppercase leading-tight">
-            {today}
+          <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            Almanaque pessoal
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground/60 italic font-display">
+            ano {new Date().getFullYear()}
           </p>
         </div>
       </div>
