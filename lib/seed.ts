@@ -1,20 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
-import { createInstallmentTransactions } from '@/lib/domain/installments';
+import { SEED_TRANSACTIONS } from '@/lib/seed-data';
 
 type SB = SupabaseClient<Database>;
 
 export type SeedResult = {
   skipped: boolean;
   recurringIncome: number;
-  recurringExpenses: number;
-  installments: number;
+  transactions: number;
   shoppingItems: number;
 };
 
 /**
  * Idempotente: só roda se `recurring_income` do usuário estiver vazia.
- * Popula os dados reais da planilha 2026 do Felipe.
+ * Popula com os 137 lançamentos reais da planilha 2026 + lista de compras.
  */
 export async function seedInitialData(supabase: SB, userId: string): Promise<SeedResult> {
   const { count, error: countError } = await supabase
@@ -24,16 +23,10 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
 
   if (countError) throw countError;
   if ((count ?? 0) > 0) {
-    return {
-      skipped: true,
-      recurringIncome: 0,
-      recurringExpenses: 0,
-      installments: 0,
-      shoppingItems: 0,
-    };
+    return { skipped: true, recurringIncome: 0, transactions: 0, shoppingItems: 0 };
   }
 
-  // 1) Salário
+  // 1) Renda recorrente — declarativa (o histórico real está nas transactions)
   const { error: incomeError } = await supabase.from('recurring_income').insert({
     user_id: userId,
     description: 'Salário',
@@ -43,36 +36,22 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
   });
   if (incomeError) throw incomeError;
 
-  // 2) Gastos recorrentes (não-parcelados)
-  const today = new Date();
-  const expenseMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-  const transactionDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
+  // 2) Transações da planilha (137 linhas, jan/26 → jan/27)
   type TxInsert = Database['public']['Tables']['transactions']['Insert'];
-
-  const recurringExpenses: TxInsert[] = [
-    { description: 'Cartão Inter', amount: -610, category: 'Cartão', payment_method: 'debit' },
-    { description: 'Mãe', amount: -600, category: 'Família', payment_method: 'pix' },
-    { description: 'Netflix', amount: -21, category: 'Assinatura', payment_method: 'credit' },
-    { description: 'Crunchyroll', amount: -15, category: 'Assinatura', payment_method: 'credit' },
-    { description: 'Spotify', amount: -12, category: 'Assinatura', payment_method: 'credit' },
-    { description: 'Claro Flex', amount: -40, category: 'Assinatura', payment_method: 'debit' },
-    { description: 'DAS MEI', amount: -86, category: 'Impostos', payment_method: 'debit' },
-    { description: 'Barbearia', amount: -25, category: 'Cuidados', payment_method: 'debit' },
-  ].map((r) => ({
+  const txRows: TxInsert[] = SEED_TRANSACTIONS.map((t) => ({
     user_id: userId,
-    description: r.description,
-    amount: r.amount,
-    type: 'expense',
-    payment_method: r.payment_method as 'credit' | 'debit',
-    category: r.category,
+    description: t.description,
+    amount: t.amount,
+    type: t.type,
+    payment_method: t.payment_method,
+    category: t.category,
     notes: null,
-    expense_month: expenseMonth,
-    billing_month: expenseMonth,
+    expense_month: t.expense_month,
+    billing_month: t.billing_month,
     card_id: null,
-    is_recurring: true,
-    is_paid: false,
-    transaction_date: transactionDate,
+    is_recurring: false,
+    is_paid: t.is_paid,
+    transaction_date: t.transaction_date,
     is_installment: false,
     installment_number: null,
     total_installments: null,
@@ -80,29 +59,14 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
     installment_end_date: null,
   }));
 
-  if (recurringExpenses.length > 0) {
-    const { error: rxError } = await supabase.from('transactions').insert(recurringExpenses);
-    if (rxError) throw rxError;
+  // Insert em lotes de 50 pra não estourar payload
+  for (let i = 0; i < txRows.length; i += 50) {
+    const batch = txRows.slice(i, i + 50);
+    const { error } = await supabase.from('transactions').insert(batch);
+    if (error) throw error;
   }
 
-  // 3) Parcelas: dentista 12x R$ 110, jan/2026 → dez/2026
-  const dentistRows = createInstallmentTransactions({
-    user_id: userId,
-    description: 'Dentista',
-    totalAmount: 1320,
-    installments: 12,
-    startDate: new Date(2026, 0, 1),
-    category: 'Saúde',
-    paymentMethod: 'credit',
-    cardId: null,
-    card: null,
-    notes: 'Tratamento parcelado',
-    isRecurring: false,
-  });
-  const { error: dentistError } = await supabase.from('transactions').insert(dentistRows);
-  if (dentistError) throw dentistError;
-
-  // 4) Lista de compras (20 itens)
+  // 3) Lista de compras (20 itens)
   type ShoppingInsert = Database['public']['Tables']['shopping_list']['Insert'];
   const shoppingItems: ShoppingInsert[] = (
     [
@@ -149,8 +113,7 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
   return {
     skipped: false,
     recurringIncome: 1,
-    recurringExpenses: recurringExpenses.length,
-    installments: dentistRows.length,
+    transactions: txRows.length,
     shoppingItems: shoppingItems.length,
   };
 }
