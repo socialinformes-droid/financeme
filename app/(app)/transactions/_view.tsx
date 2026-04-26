@@ -360,9 +360,16 @@ export function TransactionsView({
                     {formatBRL(t.amount)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={t.is_paid ? 'default' : 'secondary'}>
-                      {t.is_paid ? 'Pago' : 'Pendente'}
-                    </Badge>
+                    {t.is_paid ? (
+                      <Badge
+                        variant="secondary"
+                        className="bg-money-up/15 text-money-up border-money-up/30"
+                      >
+                        Pago
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Pendente</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
