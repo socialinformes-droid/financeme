@@ -11,6 +11,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-display: var(--font-display);
+  --font-handwritten: var(--font-handwritten);
   --font-heading: var(--font-display);
 
   --color-sidebar-ring: var(--sidebar-ring);
@@ -50,6 +51,10 @@
   --color-money-up: var(--money-up);
   --color-money-down: var(--money-down);
   --color-accent-warm: var(--accent-warm);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-magenta: var(--accent-magenta);
+  --color-accent-purple: var(--accent-purple);
 
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);
@@ -72,6 +77,10 @@
   --money-up: oklch(0.46 0.105 145);          /* verde-floresta dimmed */
   --money-down: oklch(0.48 0.16 30);          /* terracota — sangue avermelhado */
   --accent-warm: oklch(0.55 0.13 70);         /* mostarda/ocre */
+  --accent-blue: oklch(0.62 0.17 240);        /* azul vivo (acctual) */
+  --accent-green: oklch(0.78 0.22 145);       /* verde neon-elétrico */
+  --accent-magenta: oklch(0.62 0.27 330);     /* magenta */
+  --accent-purple: oklch(0.55 0.22 290);      /* roxo */
 
   /* shadcn tokens */
   --background: var(--paper);
@@ -128,6 +137,10 @@
   --money-up: oklch(0.74 0.16 145);
   --money-down: oklch(0.72 0.18 28);
   --accent-warm: oklch(0.78 0.13 70);
+  --accent-blue: oklch(0.74 0.16 240);
+  --accent-green: oklch(0.85 0.22 145);
+  --accent-magenta: oklch(0.74 0.27 330);
+  --accent-purple: oklch(0.70 0.22 290);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -253,5 +266,37 @@
   main, aside, .toaster, .sonner-toast, [data-sonner-toaster] {
     position: relative;
     z-index: 1;
+  }
+
+  /* Handwritten annotation — Caveat rotacionada */
+  .handwritten {
+    font-family: var(--font-handwritten);
+    font-size: 1.5rem;
+    line-height: 1;
+    font-weight: 500;
+    display: inline-block;
+    transform: rotate(-3deg);
+    white-space: nowrap;
+  }
+  .handwritten--right { transform: rotate(3.5deg); }
+  .handwritten--big   { transform: rotate(-4deg); font-size: 2.25rem; }
+  .handwritten--tilt  { transform: rotate(11deg); }
+  .handwritten--neg   { transform: rotate(-15deg); }
+
+  /* Color tags estilo SaaS — fundo soft, texto saturado */
+  .tag-blue    { background: color-mix(in oklch, var(--accent-blue) 14%, transparent); color: var(--accent-blue); }
+  .tag-green   { background: color-mix(in oklch, var(--money-up) 16%, transparent); color: var(--money-up); }
+  .tag-magenta { background: color-mix(in oklch, var(--accent-magenta) 14%, transparent); color: var(--accent-magenta); }
+  .tag-purple  { background: color-mix(in oklch, var(--accent-purple) 14%, transparent); color: var(--accent-purple); }
+  .tag-warm    { background: color-mix(in oklch, var(--accent-warm) 18%, transparent); color: var(--accent-warm); }
+  .tag-down    { background: color-mix(in oklch, var(--money-down) 14%, transparent); color: var(--money-down); }
+
+  .tag-pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium;
+  }
+
+  /* Pill CTA full-rounded estilo Acctual */
+  .pill-cta {
+    border-radius: 9999px;
   }
 }

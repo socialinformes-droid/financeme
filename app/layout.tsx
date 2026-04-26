@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Manrope, JetBrains_Mono } from "next/font/google";
+import { Fraunces, Manrope, JetBrains_Mono, Caveat } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -22,6 +22,13 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+const handwritten = Caveat({
+  variable: "--font-handwritten",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Financeme · Caderno Financeiro",
   description: "Almanaque pessoal de finanças",
@@ -36,7 +43,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} ${handwritten.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
