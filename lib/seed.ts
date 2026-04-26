@@ -66,6 +66,36 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
     if (error) throw error;
   }
 
+  // Marca padrões repetidos como parcelas (Dentista, Manual)
+  // — a planilha não tem essa metadata, mas semanticamente são compras parceladas.
+  const INSTALLMENT_PATTERNS = ['Dentista', 'Manual'];
+  for (const desc of INSTALLMENT_PATTERNS) {
+    const { data: rows, error: fetchErr } = await supabase
+      .from('transactions')
+      .select('id, billing_month')
+      .eq('user_id', userId)
+      .eq('description', desc)
+      .order('expense_month', { ascending: true });
+    if (fetchErr) throw fetchErr;
+    if (!rows || rows.length < 2) continue;
+    const groupId = crypto.randomUUID();
+    const total = rows.length;
+    const endDate = rows[rows.length - 1].billing_month;
+    for (let i = 0; i < rows.length; i++) {
+      const { error: updErr } = await supabase
+        .from('transactions')
+        .update({
+          is_installment: true,
+          installment_number: i + 1,
+          total_installments: total,
+          installment_group_id: groupId,
+          installment_end_date: endDate,
+        })
+        .eq('id', rows[i].id);
+      if (updErr) throw updErr;
+    }
+  }
+
   // 3) Lista de compras (20 itens)
   type ShoppingInsert = Database['public']['Tables']['shopping_list']['Insert'];
   const shoppingItems: ShoppingInsert[] = (
