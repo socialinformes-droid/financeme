@@ -26,15 +26,17 @@ type WhatIfItem = {
 export function ForecastView({
   year,
   months,
-  recurringIncomeMonth,
-  recurringExpenseMonth,
+  projectedIncomeMonth,
   variableEstimateMonth,
+  declaredIncome,
+  incomeAvg,
 }: {
   year: number;
   months: ForecastMonth[];
-  recurringIncomeMonth: number;
-  recurringExpenseMonth: number;
+  projectedIncomeMonth: number;
   variableEstimateMonth: number;
+  declaredIncome: number;
+  incomeAvg: number;
 }) {
   const [salaryDelta, setSalaryDelta] = useState(0); // % adicional no salário projetado
   const [whatIfs, setWhatIfs] = useState<WhatIfItem[]>([]);
@@ -72,10 +74,9 @@ export function ForecastView({
         expenseFixed = m.realExpense;
         expenseVariable = 0;
       } else {
-        const baseIncome = m.recurringIncome;
-        income = baseIncome * (1 + salaryDelta / 100);
-        expenseFixed = m.recurringExpense + m.installments;
-        expenseVariable = m.variableEstimate;
+        income = m.projectedIncome * (1 + salaryDelta / 100);
+        expenseFixed = m.projectedFixed; // parcelas
+        expenseVariable = m.projectedVariable; // média 3m das outras saídas
       }
 
       const total = income + whatIfIncome - expenseFixed - expenseVariable - whatIfExpense;
@@ -86,7 +87,7 @@ export function ForecastView({
         income,
         expenseFixed,
         expenseVariable,
-        installments: m.installments,
+        installments: m.projectedFixed,
         whatIfIncome,
         whatIfExpense,
         total,
@@ -108,7 +109,7 @@ export function ForecastView({
         acc += m.realIncome - m.realExpense;
       } else {
         acc +=
-          m.recurringIncome - m.recurringExpense - m.installments - m.variableEstimate;
+          m.projectedIncome - m.projectedFixed - m.projectedVariable;
       }
     }
     return acc;
@@ -148,7 +149,7 @@ export function ForecastView({
           <p className="eyebrow">Caderno de</p>
           <h2 className="headline text-4xl font-light tracking-tight">Previsão</h2>
           <p className="text-xs italic text-muted-foreground mt-1.5">
-            <span className="font-mono not-italic mr-1">{year}</span> · projeção do saldo até dez baseado em recorrentes, parcelas e média variável
+            <span className="font-mono not-italic mr-1">{year}</span> · projeção baseada na média dos últimos 3 meses + parcelas em aberto
           </p>
         </div>
         {(salaryDelta !== 0 || whatIfs.length > 0) && (
@@ -162,22 +163,33 @@ export function ForecastView({
       {/* Cards resumo */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-rule/60 border border-rule/60 rounded-lg overflow-hidden">
         <SummaryCard
-          label="Renda recorrente/mês"
-          value={recurringIncomeMonth * (1 + salaryDelta / 100)}
+          label="Renda projetada/mês"
+          value={projectedIncomeMonth * (1 + salaryDelta / 100)}
           accent="green"
-          hint={salaryDelta !== 0 ? `${salaryDelta > 0 ? '+' : ''}${salaryDelta}% sobre R$ ${recurringIncomeMonth.toFixed(0)}` : undefined}
+          hint={
+            salaryDelta !== 0
+              ? `${salaryDelta > 0 ? '+' : ''}${salaryDelta}% sobre ${formatBRL(projectedIncomeMonth)}`
+              : incomeAvg > declaredIncome
+                ? `média 3m (declarada: ${formatBRL(declaredIncome)})`
+                : `declarada (média 3m: ${formatBRL(incomeAvg)})`
+          }
         />
         <SummaryCard
-          label="Saída fixa/mês"
-          value={-(recurringExpenseMonth)}
-          accent="red"
-          hint={`média + parcelas`}
-        />
-        <SummaryCard
-          label="Variável estimada/mês"
+          label="Saída variável/mês"
           value={-variableEstimateMonth}
           accent="red"
-          hint="média 3 meses"
+          hint="média 3 meses sem parcelas"
+        />
+        <SummaryCard
+          label="+ Parcelas (varia/mês)"
+          value={
+            -months
+              .filter((m) => !m.isPast && !m.isCurrent)
+              .reduce((a, m) => a + m.projectedFixed, 0) /
+            Math.max(1, months.filter((m) => !m.isPast && !m.isCurrent).length)
+          }
+          accent="red"
+          hint="média mensal das parcelas ativas"
         />
         <SummaryCard
           label="Saldo projetado fim de ano"
@@ -355,11 +367,11 @@ export function ForecastView({
             <div className="text-xs text-muted-foreground italic">
               Salário projetado:{' '}
               <span className="font-mono not-italic text-foreground">
-                {formatBRL(recurringIncomeMonth * (1 + salaryDelta / 100))}/mês
+                {formatBRL(projectedIncomeMonth * (1 + salaryDelta / 100))}/mês
               </span>
               {salaryDelta !== 0 && (
                 <span className="ml-1.5">
-                  (era {formatBRL(recurringIncomeMonth)})
+                  (era {formatBRL(projectedIncomeMonth)})
                 </span>
               )}
             </div>

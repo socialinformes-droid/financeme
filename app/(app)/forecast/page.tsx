@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { resolveYear } from '@/lib/domain/years';
 import {
-  formatBRL,
-  formatMonthBR,
   toISODate,
   firstDayOfMonth,
+  addMonthsToISO,
 } from '@/lib/format';
 import type { TransactionRow, RecurringIncomeRow } from '@/lib/supabase/types';
 import { ForecastView } from './_view';
@@ -19,10 +18,9 @@ export type ForecastMonth = {
   realIncome: number;
   realExpense: number;
   // Projetado (futuro)
-  recurringIncome: number;
-  recurringExpense: number;
-  installments: number;
-  variableEstimate: number;
+  projectedIncome: number;
+  projectedFixed: number;       // parcelas (installments)
+  projectedVariable: number;    // média 3m das saídas restantes
 };
 
 export default async function ForecastPage({
@@ -42,11 +40,14 @@ export default async function ForecastPage({
   const endOfYear = `${year + 1}-01-01`;
   const todayKey = toISODate(firstDayOfMonth(new Date()));
 
+  // Pega todas as transações do ano + 6 meses antes (pra calcular médias)
+  const lookbackStart = addMonthsToISO(startOfYear, -6);
+
   const [{ data: txs }, { data: recurring }] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
-      .gte('expense_month', `${year - 1}-01-01`)
+      .gte('expense_month', lookbackStart)
       .lt('expense_month', endOfYear)
       .order('expense_month', { ascending: true }),
     supabase.from('recurring_income').select('*').eq('is_active', true),
@@ -55,60 +56,71 @@ export default async function ForecastPage({
   const allTxs = (txs ?? []) as TransactionRow[];
   const recurringIncomes = (recurring ?? []) as RecurringIncomeRow[];
 
-  // Renda recorrente declarada no DB (soma diária)
-  const recurringIncomeMonth = recurringIncomes.reduce((a, r) => a + Number(r.amount), 0);
+  // ─────────────────────────────────────────────────────────────────────────
+  // Cálculos baseados em DADOS REAIS, sem depender de flag is_recurring
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // Despesas recorrentes (is_recurring=true em transactions): tira média do últimos 6m com expense_month antes de hoje
-  const sixMonthsAgo = todayKey;
-  const recurringExpensesPast = allTxs.filter(
-    (t) =>
-      t.is_recurring &&
-      t.type === 'expense' &&
-      (t.expense_month ?? '') < sixMonthsAgo,
-  );
-  // soma a média mensal das recorrentes presentes nos últimos 6 meses
-  const recurringExpenseMap = new Map<string, number[]>();
-  for (const t of recurringExpensesPast) {
-    const key = t.description;
-    const arr = recurringExpenseMap.get(key) ?? [];
-    arr.push(Math.abs(Number(t.amount)));
-    recurringExpenseMap.set(key, arr);
-  }
-  const recurringExpenseMonth = [...recurringExpenseMap.values()].reduce(
-    (a, vals) => a + vals.reduce((b, v) => b + v, 0) / vals.length,
-    0,
-  );
-
-  // Variável: média dos últimos 3 meses de saídas não-recorrentes e não-installment
-  const last3Months: string[] = [];
+  // 1) Renda projetada/mês = média 3 meses anteriores ao current de TODAS entradas reais.
+  //    Fallback: recurring_income declarada (Salário) se não houver histórico.
+  const last3RealMonths: string[] = [];
   for (let i = 1; i <= 3; i++) {
-    const d = new Date(todayKey);
-    d.setMonth(d.getMonth() - i);
-    last3Months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`);
+    last3RealMonths.push(addMonthsToISO(todayKey, -i));
   }
-  const variablePast = allTxs.filter(
-    (t) =>
-      t.type === 'expense' &&
-      !t.is_recurring &&
-      !t.is_installment &&
-      last3Months.includes(t.expense_month ?? ''),
-  );
-  const variableTotal = variablePast.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
-  const variableEstimateMonth = variablePast.length > 0 ? variableTotal / 3 : 0;
 
+  const realIncome3m = last3RealMonths.map((m) => {
+    return allTxs
+      .filter((t) => t.expense_month === m && t.type === 'income')
+      .reduce((a, t) => a + Number(t.amount), 0);
+  });
+  const incomeAvg = realIncome3m.length > 0
+    ? realIncome3m.reduce((a, b) => a + b, 0) / realIncome3m.length
+    : 0;
+
+  const declaredIncome = recurringIncomes.reduce((a, r) => a + Number(r.amount), 0);
+
+  // Usa o maior entre média histórica e renda declarada (mais conservador)
+  const projectedIncomeMonth = Math.max(incomeAvg, declaredIncome);
+
+  // 2) Saídas projetadas/mês = média 3m de TODAS as saídas reais EXCLUINDO parcelas
+  //    (parcelas são contadas separadamente e exatas)
+  const realExpenseExcludingInstallments3m = last3RealMonths.map((m) => {
+    return allTxs
+      .filter(
+        (t) =>
+          t.expense_month === m &&
+          t.type === 'expense' &&
+          !t.is_installment,
+      )
+      .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+  });
+  const variableEstimateMonth = realExpenseExcludingInstallments3m.length > 0
+    ? realExpenseExcludingInstallments3m.reduce((a, b) => a + b, 0) /
+      realExpenseExcludingInstallments3m.length
+    : 0;
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Constrói os 12 meses do ano
+  // ─────────────────────────────────────────────────────────────────────────
   const months: ForecastMonth[] = [];
   for (let m = 1; m <= 12; m++) {
     const monthKey = `${year}-${String(m).padStart(2, '0')}-01`;
     const monthTxs = allTxs.filter((t) => t.expense_month === monthKey);
     const isPast = monthKey < todayKey;
     const isCurrent = monthKey === todayKey;
-    const realIncome = monthTxs.filter((t) => t.type === 'income').reduce((a, t) => a + Number(t.amount), 0);
-    const realExpense = monthTxs.filter((t) => t.type === 'expense').reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
-    // Parcelas (installments) projetadas — aquelas com billing_month=monthKey, mesmo no futuro
+
+    const realIncome = monthTxs
+      .filter((t) => t.type === 'income')
+      .reduce((a, t) => a + Number(t.amount), 0);
+    const realExpense = monthTxs
+      .filter((t) => t.type === 'expense')
+      .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+
+    // Parcelas projetadas = instalments com billing_month neste mês
     const installmentsForMonth = allTxs
       .filter((t) => t.is_installment && t.billing_month === monthKey)
       .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+
+    const isFuture = !isPast && !isCurrent;
 
     months.push({
       month: monthKey,
@@ -116,10 +128,9 @@ export default async function ForecastPage({
       isCurrent,
       realIncome,
       realExpense,
-      recurringIncome: isPast || isCurrent ? 0 : recurringIncomeMonth,
-      recurringExpense: isPast || isCurrent ? 0 : recurringExpenseMonth,
-      installments: installmentsForMonth,
-      variableEstimate: isPast || isCurrent ? 0 : variableEstimateMonth,
+      projectedIncome: isFuture ? projectedIncomeMonth : 0,
+      projectedFixed: isFuture ? installmentsForMonth : 0,
+      projectedVariable: isFuture ? variableEstimateMonth : 0,
     });
   }
 
@@ -127,9 +138,10 @@ export default async function ForecastPage({
     <ForecastView
       year={year}
       months={months}
-      recurringIncomeMonth={recurringIncomeMonth}
-      recurringExpenseMonth={recurringExpenseMonth}
+      projectedIncomeMonth={projectedIncomeMonth}
       variableEstimateMonth={variableEstimateMonth}
+      declaredIncome={declaredIncome}
+      incomeAvg={incomeAvg}
     />
   );
 }
