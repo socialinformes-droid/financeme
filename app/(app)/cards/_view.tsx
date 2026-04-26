@@ -22,6 +22,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { CardForm } from '@/components/forms/card-form';
+import { FaturaGrid } from '@/components/cards/fatura-grid';
 import type { CardRow, TransactionRow } from '@/lib/supabase/types';
 
 export function CardsView({
@@ -129,6 +130,24 @@ export function CardsView({
           </p>
         </div>
       ) : (
+        <>
+        <FaturaGrid
+          userId={userId}
+          cards={initialCards}
+          transactions={transactions}
+          year={new Date().getFullYear()}
+        />
+
+        <div className="flex items-end justify-between gap-3 pb-2 border-b border-rule/40 pt-4">
+          <div>
+            <p className="eyebrow mb-1">Detalhe</p>
+            <h3 className="headline text-2xl font-medium tracking-tight">Por cartão</h3>
+          </div>
+          <p className="text-xs italic text-muted-foreground pb-1">
+            Visão individual com fatura atual e histórico
+          </p>
+        </div>
+
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {enriched.map(({ card, currentFatura, history, txCount }) => {
             const limit = Number(card.limit_amount ?? 0);
@@ -253,6 +272,7 @@ export function CardsView({
             );
           })}
         </ul>
+        </>
       )}
     </div>
   );
