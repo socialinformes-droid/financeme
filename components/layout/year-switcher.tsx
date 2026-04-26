@@ -63,14 +63,14 @@ export function YearSwitcher({
         </button>
       </div>
       {availableYears.length > 1 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex gap-1 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           {availableYears.map((y) => (
             <button
               key={y}
               type="button"
               onClick={() => setYear(y)}
               className={cn(
-                'text-[11px] font-mono px-1.5 py-0.5 rounded-sm transition-colors',
+                'shrink-0 text-[11px] font-mono px-1.5 py-0.5 rounded-sm transition-colors',
                 y === current
                   ? 'bg-foreground text-background'
                   : 'text-muted-foreground hover:text-foreground',
