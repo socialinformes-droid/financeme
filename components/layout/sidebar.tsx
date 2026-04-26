@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ArrowDownUp,
@@ -10,12 +10,9 @@ import {
   ShoppingBag,
   TrendingUp,
   Settings,
-  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { createClient } from '@/lib/supabase/client';
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phase?: number };
 
@@ -29,17 +26,8 @@ const NAV: NavItem[] = [
   { href: '/settings', label: 'Config', icon: Settings, phase: 3 },
 ];
 
-export function Sidebar({ email }: { email?: string }) {
+export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-
-  const onLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  };
-
   return (
     <aside className="hidden md:flex w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="px-5 py-5">
@@ -76,19 +64,6 @@ export function Sidebar({ email }: { email?: string }) {
           );
         })}
       </nav>
-      <Separator />
-      <div className="px-3 py-3 space-y-2">
-        {email && <p className="px-2 text-xs text-muted-foreground truncate" title={email}>{email}</p>}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground"
-          onClick={onLogout}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sair
-        </Button>
-      </div>
     </aside>
   );
 }

@@ -9,7 +9,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  // Proxy garante user no caminho normal — fallback caso algo escape.
+  if (!user) redirect('/auto-login');
 
   // Seed idempotente — só roda na 1ª sessão
   try {
@@ -20,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-svh">
-      <Sidebar email={user.email ?? undefined} />
+      <Sidebar />
       <main className="flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">{children}</div>
       </main>

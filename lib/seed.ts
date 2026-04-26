@@ -91,7 +91,7 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
     description: 'Dentista',
     totalAmount: 1320,
     installments: 12,
-    startDate: new Date(Date.UTC(2026, 0, 1)),
+    startDate: new Date(2026, 0, 1),
     category: 'Saúde',
     paymentMethod: 'credit',
     cardId: null,

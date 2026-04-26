@@ -44,9 +44,20 @@ export function firstDayOfMonth(d: Date): Date {
 }
 
 export function addMonths(d: Date, months: number): Date {
-  const r = new Date(d);
-  r.setMonth(r.getMonth() + months);
-  return r;
+  // Constrói via componentes locais para evitar drift de timezone.
+  return new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
+}
+
+/**
+ * Soma meses a uma data ISO (YYYY-MM-DD) usando aritmética de inteiros.
+ * Imune a fuso horário — sempre retorna uma string ISO no mesmo dia do mês.
+ */
+export function addMonthsToISO(iso: string, months: number): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const totalMonths = (y * 12) + (m - 1) + months;
+  const year = Math.floor(totalMonths / 12);
+  const month = (totalMonths % 12) + 1;
+  return `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 export function toISODate(d: Date): string {

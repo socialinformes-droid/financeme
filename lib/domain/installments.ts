@@ -1,4 +1,4 @@
-import { addMonths, firstDayOfMonth, toISODate } from '@/lib/format';
+import { addMonthsToISO, firstDayOfMonth, toISODate } from '@/lib/format';
 import { calculateBillingMonth, type CardForBilling } from '@/lib/domain/billing';
 
 export type InstallmentInput = {
@@ -63,13 +63,10 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
   const sumExceptLast = +(rounded * (input.installments - 1)).toFixed(2);
   const lastAmount = +(input.totalAmount - sumExceptLast).toFixed(2);
 
-  const startBillingDate = new Date(`${startBilling}T00:00:00Z`);
-  const endBillingDate = addMonths(startBillingDate, input.installments - 1);
-  const installmentEndDate = toISODate(endBillingDate);
+  const installmentEndDate = addMonthsToISO(startBilling, input.installments - 1);
 
   const rows: InstallmentRow[] = [];
   for (let i = 0; i < input.installments; i++) {
-    const billingDate = addMonths(startBillingDate, i);
     const isLast = i === input.installments - 1;
     rows.push({
       user_id: input.user_id,
@@ -80,7 +77,7 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
       category: input.category,
       notes: input.notes ?? null,
       expense_month: expenseMonth,
-      billing_month: toISODate(billingDate),
+      billing_month: addMonthsToISO(startBilling, i),
       card_id: input.cardId ?? null,
       is_recurring: !!input.isRecurring,
       is_paid: false,
