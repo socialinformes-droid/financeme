@@ -52,10 +52,12 @@ export function TransactionsView({
   userId,
   initialTransactions,
   cards,
+  year,
 }: {
   userId: string;
   initialTransactions: TransactionRow[];
   cards: CardRow[];
+  year: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -134,7 +136,7 @@ export function TransactionsView({
           <p className="eyebrow">Caderno de</p>
           <h2 className="headline text-4xl font-light tracking-tight">Lançamentos</h2>
           <p className="text-xs italic text-muted-foreground mt-1.5">
-            {totals.count} {totals.count === 1 ? 'linha' : 'linhas'} · entradas{' '}
+            <span className="font-mono not-italic mr-1">{year}</span> · {totals.count} {totals.count === 1 ? 'linha' : 'linhas'} · entradas{' '}
             <span className="font-mono not-italic">{formatBRL(totals.income)}</span> · saídas{' '}
             <span className="font-mono not-italic">{formatBRL(totals.expense)}</span> · saldo{' '}
             <span className={`font-mono not-italic ${totals.balance >= 0 ? 'text-money-up' : 'text-money-down'}`}>

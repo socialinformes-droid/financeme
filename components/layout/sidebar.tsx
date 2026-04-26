@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ArrowDownUp,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { YearSwitcher } from '@/components/layout/year-switcher';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phase?: number };
 
@@ -27,6 +28,22 @@ const NAV: NavItem[] = [
 ];
 
 export function Sidebar({ availableYears }: { availableYears: number[] }) {
+  return (
+    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
+      <SidebarContent availableYears={availableYears} />
+    </aside>
+  );
+}
+
+export function SidebarContent({
+  availableYears,
+  onNavigate,
+  isMobile = false,
+}: {
+  availableYears: number[];
+  onNavigate?: () => void;
+  isMobile?: boolean;
+}) {
   const pathname = usePathname();
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -37,8 +54,7 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
   const defaultYear = new Date().getFullYear();
 
   return (
-    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
-      {/* Masthead */}
+    <div className="flex flex-col h-full">
       <div className="px-5 pt-7 pb-5 border-b border-rule/40">
         <p className="eyebrow mb-1">Edição diária</p>
         <h1 className="headline text-[28px] leading-none tracking-tight font-medium">
@@ -50,7 +66,6 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
         </p>
       </div>
 
-      {/* Year switcher */}
       <div className="px-5 py-4 border-b border-rule/40">
         <YearSwitcher availableYears={availableYears} defaultYear={defaultYear} />
       </div>
@@ -66,7 +81,13 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
                 <Link
                   href={disabled ? '#' : item.href}
                   aria-disabled={disabled}
-                  onClick={(e) => disabled && e.preventDefault()}
+                  onClick={(e) => {
+                    if (disabled) {
+                      e.preventDefault();
+                      return;
+                    }
+                    onNavigate?.();
+                  }}
                   className={cn(
                     'group flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors',
                     active
@@ -77,9 +98,7 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
                 >
                   <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
                   <span className="flex-1 leading-none">{item.label}</span>
-                  {active && (
-                    <span className="text-primary text-[10px]">●</span>
-                  )}
+                  {active && <span className="text-primary text-[10px]">●</span>}
                   {item.phase && (
                     <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground/60">
                       Cap. {item.phase}
@@ -92,15 +111,17 @@ export function Sidebar({ availableYears }: { availableYears: number[] }) {
         </ul>
       </nav>
 
-      {/* Rodapé */}
-      <div className="px-5 py-4 border-t border-rule/40">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-          Almanaque pessoal
-        </p>
-        <p className="mt-1 text-[11px] text-muted-foreground/60 italic font-display">
-          ano {new Date().getFullYear()}
-        </p>
+      <div className="px-5 py-4 border-t border-rule/40 space-y-3">
+        <ThemeToggle />
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            Almanaque pessoal
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground/60 italic font-display">
+            ano {new Date().getFullYear()}
+          </p>
+        </div>
       </div>
-    </aside>
+    </div>
   );
 }

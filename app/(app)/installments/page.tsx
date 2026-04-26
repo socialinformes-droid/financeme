@@ -7,6 +7,7 @@ import {
 } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { resolveYear } from '@/lib/domain/years';
 import type { TransactionRow } from '@/lib/supabase/types';
 
 export const dynamic = 'force-dynamic';
@@ -26,15 +27,43 @@ type Group = {
   status: 'active' | 'finished' | 'upcoming';
 };
 
-export default async function InstallmentsPage() {
+export default async function InstallmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const supabase = await createClient();
+  const { year: yearParam } = await searchParams;
+  const year = resolveYear(yearParam);
+  const startOfYear = `${year}-01-01`;
+  const endOfYear = `${year + 1}-01-01`;
+
   const { data } = await supabase
     .from('transactions')
     .select('*')
     .eq('is_installment', true)
     .order('billing_month', { ascending: true });
 
-  const txs = (data ?? []) as TransactionRow[];
+  // Filtra grupos cujo período (start..end) intersecta com o ano selecionado
+  const allTxs = (data ?? []) as TransactionRow[];
+  const groupsActiveInYear = new Set<string>();
+  const groupBounds = new Map<string, { start: string; end: string }>();
+  for (const t of allTxs) {
+    if (!t.installment_group_id || !t.billing_month) continue;
+    const cur = groupBounds.get(t.installment_group_id);
+    if (!cur) {
+      groupBounds.set(t.installment_group_id, { start: t.billing_month, end: t.billing_month });
+    } else {
+      if (t.billing_month < cur.start) cur.start = t.billing_month;
+      if (t.billing_month > cur.end) cur.end = t.billing_month;
+    }
+  }
+  for (const [gid, { start, end }] of groupBounds) {
+    if (start < endOfYear && end >= startOfYear) groupsActiveInYear.add(gid);
+  }
+  const txs = allTxs.filter(
+    (t) => t.installment_group_id && groupsActiveInYear.has(t.installment_group_id),
+  );
 
   // Agrupar por installment_group_id
   const map = new Map<string, TransactionRow[]>();
@@ -104,7 +133,8 @@ export default async function InstallmentsPage() {
           <p className="eyebrow">Caderno de</p>
           <h2 className="headline text-4xl font-light tracking-tight">Parcelas</h2>
           <p className="text-xs italic text-muted-foreground mt-1.5">
-            {groups.length} {groups.length === 1 ? 'grupo' : 'grupos'} no total · ainda devo{' '}
+            <span className="font-mono not-italic mr-1">{year}</span> · {groups.length}{' '}
+            {groups.length === 1 ? 'grupo ativo' : 'grupos ativos'} · ainda devo{' '}
             <span className="font-mono not-italic text-money-down">{formatBRL(totalActive)}</span>
           </p>
         </div>
