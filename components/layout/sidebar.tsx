@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
   ArrowDownUp,
@@ -12,6 +12,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { YearSwitcher } from '@/components/layout/year-switcher';
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phase?: number };
 
@@ -25,7 +26,7 @@ const NAV: NavItem[] = [
   { href: '/settings', label: 'Edição', icon: Settings, phase: 3 },
 ];
 
-export function Sidebar() {
+export function Sidebar({ availableYears }: { availableYears: number[] }) {
   const pathname = usePathname();
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -33,6 +34,7 @@ export function Sidebar() {
     month: 'long',
     year: 'numeric',
   });
+  const defaultYear = new Date().getFullYear();
 
   return (
     <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-rule/60 bg-sidebar text-sidebar-foreground">
@@ -46,6 +48,11 @@ export function Sidebar() {
         <p className="mt-3 text-[11px] font-mono text-muted-foreground/80 lowercase first-letter:uppercase">
           {today}
         </p>
+      </div>
+
+      {/* Year switcher */}
+      <div className="px-5 py-4 border-b border-rule/40">
+        <YearSwitcher availableYears={availableYears} defaultYear={defaultYear} />
       </div>
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">

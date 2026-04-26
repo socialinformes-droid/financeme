@@ -6,6 +6,7 @@ import {
   formatMonthBR,
   toISODate,
 } from '@/lib/format';
+import { resolveYear } from '@/lib/domain/years';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
 import { PivotTable, type PivotRow } from '@/components/pivot-table';
@@ -14,23 +15,34 @@ import { ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const supabase = await createClient();
-
+  const { year: yearParam } = await searchParams;
   const today = new Date();
-  const year = today.getFullYear();
+  const year = resolveYear(yearParam);
+  const isCurrentYear = year === today.getFullYear();
   const startOfYear = `${year}-01-01`;
-  const currentMonthKey = toISODate(firstDayOfMonth(today));
+  const endOfYear = `${year + 1}-01-01`;
+  // Mês "atual" — se navegando ano diferente, usa janeiro daquele ano
+  const currentMonthKey = isCurrentYear
+    ? toISODate(firstDayOfMonth(today))
+    : `${year}-01-01`;
 
   const { data: allTxs, error: txError } = await supabase
     .from('transactions')
     .select('*')
+    .gte('expense_month', startOfYear)
+    .lt('expense_month', endOfYear)
     .order('transaction_date', { ascending: true });
 
   if (txError) console.error('[dashboard tx]', txError);
   const txs = (allTxs ?? []) as TransactionRow[];
 
-  // Cards do mês atual
+  // Cards do mês "current" (atual ou jan do ano selecionado)
   let monthIncome = 0;
   let monthExpense = 0;
   for (const t of txs) {
@@ -43,9 +55,6 @@ export default async function Dashboard() {
   // Acumulado do ano
   let yearBalance = 0;
   for (const t of txs) {
-    if (!t.expense_month) continue;
-    if (t.expense_month < startOfYear) continue;
-    if (t.expense_month >= `${year + 1}-01-01`) continue;
     yearBalance += Number(t.amount);
   }
 

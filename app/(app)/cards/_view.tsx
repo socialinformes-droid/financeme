@@ -29,17 +29,23 @@ export function CardsView({
   userId,
   initialCards,
   transactions,
+  year,
 }: {
   userId: string;
   initialCards: CardRow[];
   transactions: TransactionRow[];
+  year: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CardRow | null>(null);
 
-  const todayKey = toISODate(firstDayOfMonth(new Date()));
+  const today = new Date();
+  const todayKey =
+    year === today.getFullYear()
+      ? toISODate(firstDayOfMonth(today))
+      : `${year}-01-01`;
 
   const enriched = useMemo(() => {
     return initialCards.map((c) => {
@@ -135,7 +141,7 @@ export function CardsView({
           userId={userId}
           cards={initialCards}
           transactions={transactions}
-          year={new Date().getFullYear()}
+          year={year}
         />
 
         <div className="flex items-end justify-between gap-3 pb-2 border-b border-rule/40 pt-4">
