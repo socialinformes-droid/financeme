@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Trash2, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORIES } from '@/lib/domain/categories';
@@ -59,6 +59,7 @@ export function TransactionsView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     type: 'all',
@@ -137,24 +138,37 @@ export function TransactionsView({
             </span>
           </p>
         </div>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger render={<Button />}>
+        <Sheet
+          open={open || !!editing}
+          onOpenChange={(o) => {
+            if (!o) {
+              setOpen(false);
+              setEditing(null);
+            }
+          }}
+        >
+          <SheetTrigger render={<Button />} onClick={() => setOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Novo lançamento
           </SheetTrigger>
           <SheetContent className="w-full sm:max-w-md overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>Novo lançamento</SheetTitle>
+              <SheetTitle>{editing ? 'Editar lançamento' : 'Novo lançamento'}</SheetTitle>
               <SheetDescription>
-                Crédito calcula `mês da fatura` automaticamente. Ative parcelado para gerar N transações.
+                {editing
+                  ? 'As mudanças são aplicadas só nesta linha.'
+                  : 'Crédito calcula o mês da fatura automaticamente. Ative parcelado para gerar N transações.'}
               </SheetDescription>
             </SheetHeader>
             <div className="mt-4 px-4 pb-4">
               <TransactionForm
+                key={editing?.id ?? 'new'}
                 userId={userId}
                 cards={cards}
+                editing={editing}
                 onDone={() => {
                   setOpen(false);
+                  setEditing(null);
                   refresh();
                 }}
               />
@@ -289,6 +303,16 @@ export function TransactionsView({
                         disabled={pending}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        title="Editar"
+                        onClick={() => setEditing(t)}
+                        disabled={pending}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         size="icon"

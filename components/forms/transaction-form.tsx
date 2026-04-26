@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { CardRow } from '@/lib/supabase/types';
+import type { CardRow, TransactionRow } from '@/lib/supabase/types';
 
 const schema = z.object({
   description: z.string().min(1, 'Obrigatório'),
@@ -45,24 +45,41 @@ export type TransactionFormProps = {
   userId: string;
   cards: CardRow[];
   onDone?: () => void;
+  /** Quando passado, o formulário vira modo edit e faz UPDATE em vez de INSERT. */
+  editing?: TransactionRow | null;
 };
 
-export function TransactionForm({ userId, cards, onDone }: TransactionFormProps) {
+export function TransactionForm({ userId, cards, onDone, editing }: TransactionFormProps) {
   const [submitting, setSubmitting] = useState(false);
+  const isEdit = !!editing;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      description: '',
-      amount: 0,
-      type: 'expense',
-      payment_method: 'debit',
-      category: 'Outros',
-      transaction_date: toISODate(new Date()),
-      is_recurring: false,
-      is_paid: false,
-      is_installment: false,
-    },
+    defaultValues: editing
+      ? {
+          description: editing.description,
+          amount: Math.abs(Number(editing.amount)),
+          type: editing.type,
+          payment_method: editing.payment_method,
+          category: editing.category,
+          transaction_date: editing.transaction_date,
+          card_id: editing.card_id ?? undefined,
+          notes: editing.notes ?? '',
+          is_recurring: editing.is_recurring,
+          is_paid: editing.is_paid,
+          is_installment: false, // não é editável em modo edit
+        }
+      : {
+          description: '',
+          amount: 0,
+          type: 'expense',
+          payment_method: 'debit',
+          category: 'Outros',
+          transaction_date: toISODate(new Date()),
+          is_recurring: false,
+          is_paid: false,
+          is_installment: false,
+        },
   });
 
   const type = form.watch('type');
@@ -95,6 +112,32 @@ export function TransactionForm({ userId, cards, onDone }: TransactionFormProps)
 
       const sign = values.type === 'income' ? 1 : -1;
       const total = Math.abs(values.amount) * sign;
+
+      // ── Modo EDIT: UPDATE direto, sem mexer em parcelas/group ─────────────
+      if (isEdit && editing) {
+        const billingMonth = calculateBillingMonth(txDate, values.payment_method, card);
+        const { error } = await supabase
+          .from('transactions')
+          .update({
+            description: values.description,
+            amount: total,
+            type: values.type,
+            payment_method: values.payment_method,
+            category: values.category,
+            notes: values.notes ?? null,
+            expense_month: expenseMonth,
+            billing_month: billingMonth,
+            card_id: values.card_id ?? null,
+            is_recurring: values.is_recurring,
+            is_paid: values.is_paid,
+            transaction_date: values.transaction_date,
+          })
+          .eq('id', editing.id);
+        if (error) throw error;
+        toast.success('Lançamento atualizado');
+        onDone?.();
+        return;
+      }
 
       if (values.is_installment && values.type === 'expense' && (values.total_installments ?? 0) > 1) {
         const rows = createInstallmentTransactions({
@@ -302,7 +345,7 @@ export function TransactionForm({ userId, cards, onDone }: TransactionFormProps)
           />
         </div>
 
-        {type === 'expense' && (
+        {type === 'expense' && !isEdit && (
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Parcelado</p>
@@ -318,7 +361,14 @@ export function TransactionForm({ userId, cards, onDone }: TransactionFormProps)
           </div>
         )}
 
-        {isInstallment && (
+        {isEdit && editing?.is_installment && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-300/80">
+            Esta é a parcela {editing.installment_number}/{editing.total_installments}.
+            A edição afeta só esta linha — outras parcelas do grupo permanecem inalteradas.
+          </div>
+        )}
+
+        {isInstallment && !isEdit && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Total de parcelas</Label>
@@ -347,7 +397,7 @@ export function TransactionForm({ userId, cards, onDone }: TransactionFormProps)
       </div>
 
       <Button type="submit" className="w-full" disabled={submitting}>
-        {submitting ? 'Salvando...' : 'Salvar'}
+        {submitting ? 'Salvando...' : isEdit ? 'Atualizar' : 'Salvar'}
       </Button>
     </form>
   );
