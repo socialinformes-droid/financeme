@@ -9,8 +9,8 @@ import {
 import { resolveYear } from '@/lib/domain/years';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
-import { PivotTable, type PivotRow } from '@/components/pivot-table';
-import type { TransactionRow, ShoppingItemRow } from '@/lib/supabase/types';
+import { PivotTable, type PivotRow, type MonthlyActual } from '@/components/pivot-table';
+import type { TransactionRow, ShoppingItemRow, MonthlyActualRow } from '@/lib/supabase/types';
 import { ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -32,15 +32,29 @@ export default async function Dashboard({
     ? toISODate(firstDayOfMonth(today))
     : `${year}-01-01`;
 
-  const { data: allTxs, error: txError } = await supabase
-    .from('transactions')
-    .select('*')
-    .gte('expense_month', startOfYear)
-    .lt('expense_month', endOfYear)
-    .order('transaction_date', { ascending: true });
+  const [{ data: allTxs, error: txError }, { data: actualsData, error: actualsError }] =
+    await Promise.all([
+      supabase
+        .from('transactions')
+        .select('*')
+        .gte('expense_month', startOfYear)
+        .lt('expense_month', endOfYear)
+        .order('transaction_date', { ascending: true }),
+      supabase
+        .from('monthly_actuals')
+        .select('month,balance')
+        .gte('month', startOfYear)
+        .lt('month', endOfYear),
+    ]);
 
   if (txError) console.error('[dashboard tx]', txError);
+  if (actualsError) console.error('[dashboard actuals]', actualsError);
   const txs = (allTxs ?? []) as TransactionRow[];
+  const actuals: MonthlyActual[] = ((actualsData ?? []) as Pick<MonthlyActualRow, 'month' | 'balance'>[]).map(
+    (a) => ({ month: a.month, balance: Number(a.balance) }),
+  );
+
+  const userId = (await supabase.auth.getUser()).data.user?.id;
 
   // Cards do mês "current" (atual ou jan do ano selecionado)
   let monthIncome = 0;
@@ -121,9 +135,15 @@ export default async function Dashboard({
         <SectionHeader
           eyebrow="Caderno principal"
           title="Visão por categoria"
-          subtitle="Linhas mensais cruzadas com o motivo do lançamento"
+          subtitle="Calculado · Real · Δ comparativo"
         />
-        <PivotTable data={pivotRows} startMonth={`${year}-01-01`} monthsCount={12} />
+        <PivotTable
+          data={pivotRows}
+          startMonth={`${year}-01-01`}
+          monthsCount={12}
+          actuals={actuals}
+          userId={userId}
+        />
       </section>
 
       <section className="space-y-3">

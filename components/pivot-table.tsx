@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatMonthBR, addMonthsToISO } from '@/lib/format';
 import { CATEGORY_COLOR } from '@/lib/domain/categories';
+import { createClient } from '@/lib/supabase/client';
 
 export type PivotRow = {
   type: 'income' | 'expense';
@@ -14,11 +17,20 @@ export type PivotRow = {
   billing_month: string | null;
 };
 
+export type MonthlyActual = {
+  month: string; // YYYY-MM-01
+  balance: number;
+};
+
 type PivotProps = {
   data: PivotRow[];
   monthAxis?: 'expense' | 'billing';
   startMonth?: string;
   monthsCount?: number;
+  /** Saldos reais (informados pelo user) por mês */
+  actuals?: MonthlyActual[];
+  /** Quando passado, habilita edição inline da linha Real */
+  userId?: string;
 };
 
 type Hover = { row: string | null; col: string | null };
@@ -28,9 +40,56 @@ export function PivotTable({
   monthAxis: initialAxis = 'expense',
   startMonth = '2026-01-01',
   monthsCount = 12,
+  actuals = [],
+  userId,
 }: PivotProps) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [monthAxis, setMonthAxis] = useState<'expense' | 'billing'>(initialAxis);
   const [hover, setHover] = useState<Hover>({ row: null, col: null });
+  const [savingMonth, setSavingMonth] = useState<string | null>(null);
+
+  const actualsByMonth = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of actuals) m.set(a.month, a.balance);
+    return m;
+  }, [actuals]);
+
+  const saveActual = async (month: string, value: number | null) => {
+    if (!userId) return;
+    setSavingMonth(month);
+    try {
+      const supabase = createClient();
+      if (value === null || value === 0) {
+        // Remove o real (deixa vazio)
+        const { error } = await supabase
+          .from('monthly_actuals')
+          .delete()
+          .eq('user_id', userId)
+          .eq('month', month);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('monthly_actuals')
+          .upsert(
+            {
+              user_id: userId,
+              month,
+              balance: value,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,month' },
+          );
+        if (error) throw error;
+      }
+      startTransition(() => router.refresh());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro';
+      toast.error(`Falha ao salvar real: ${msg}`);
+    } finally {
+      setSavingMonth(null);
+    }
+  };
 
   const months = useMemo(
     () => Array.from({ length: monthsCount }, (_, i) => addMonthsToISO(startMonth, i)),
@@ -182,7 +241,7 @@ export function PivotTable({
               onMouseEnter={() => setHover((h) => ({ ...h, row: 'total' }))}
             >
               <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-3 border-t-2 border-double border-rule">
-                <span className="font-display text-sm italic">Total geral</span>
+                <span className="font-display text-sm italic">Calculado</span>
               </td>
               {totalsByMonth.map((v, i) => (
                 <td
@@ -207,6 +266,109 @@ export function PivotTable({
                 {formatNumber(totalGeral)}
               </td>
             </tr>
+
+            {/* Linha REAL (editável) */}
+            {userId && (
+              <tr
+                className={cn(
+                  'bg-card transition-colors',
+                  isRowHover('real') && 'bg-paper-dark/30',
+                )}
+                onMouseEnter={() => setHover((h) => ({ ...h, row: 'real' }))}
+              >
+                <td className="sticky left-0 z-10 bg-card px-4 py-2.5 border-b border-rule/30">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="font-display text-sm italic text-foreground">Real</span>
+                    <span className="tag-pill tag-blue">click pra editar</span>
+                  </span>
+                </td>
+                {months.map((m) => {
+                  const realValue = actualsByMonth.get(m) ?? null;
+                  return (
+                    <RealCell
+                      key={m}
+                      month={m}
+                      value={realValue}
+                      isToday={m === todayKey}
+                      isHover={isColHover(m)}
+                      isSaving={savingMonth === m}
+                      onSave={(v) => saveActual(m, v)}
+                      onMouseEnter={() => setHover({ row: 'real', col: m })}
+                    />
+                  );
+                })}
+                <td className="px-3 py-2.5 text-right tabular-nums bg-paper-dark/30 font-medium text-foreground/70 border-b border-rule/30">
+                  {(() => {
+                    const sum = months.reduce(
+                      (a, m) => a + (actualsByMonth.get(m) ?? 0),
+                      0,
+                    );
+                    const filled = months.some((m) => actualsByMonth.has(m));
+                    return filled ? formatNumber(sum) : '—';
+                  })()}
+                </td>
+              </tr>
+            )}
+
+            {/* Linha DIFERENÇA (Real − Calculado) — só onde há valor real */}
+            {userId && (
+              <tr
+                className={cn(
+                  'bg-paper-dark/20 transition-colors',
+                  isRowHover('diff') && 'bg-paper-dark/40',
+                )}
+                onMouseEnter={() => setHover((h) => ({ ...h, row: 'diff' }))}
+              >
+                <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2 border-b border-rule/40">
+                  <span className="font-display text-xs italic text-muted-foreground">
+                    Δ Diferença
+                  </span>
+                </td>
+                {months.map((m, i) => {
+                  const real = actualsByMonth.get(m);
+                  const calc = totalsByMonth[i];
+                  if (real === undefined) {
+                    return (
+                      <td
+                        key={m}
+                        onMouseEnter={() => setHover({ row: 'diff', col: m })}
+                        className={cn(
+                          'px-2 py-2 text-right text-muted-foreground/30 border-b border-rule/40',
+                          isColHover(m) && 'bg-accent/20',
+                        )}
+                      >
+                        ·
+                      </td>
+                    );
+                  }
+                  const diff = real - calc;
+                  return (
+                    <td
+                      key={m}
+                      onMouseEnter={() => setHover({ row: 'diff', col: m })}
+                      className={cn(
+                        'px-2 py-2 text-right tabular-nums text-xs font-medium border-b border-rule/40 transition-colors',
+                        isColHover(m) && 'bg-accent/20',
+                        diff > 0
+                          ? 'text-money-up'
+                          : diff < 0
+                            ? 'text-money-down'
+                            : 'text-muted-foreground/60',
+                      )}
+                    >
+                      {diff === 0
+                        ? '0'
+                        : diff > 0
+                          ? `+${formatNumber(diff)}`
+                          : `(${formatNumber(Math.abs(diff))})`}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2 text-right tabular-nums bg-paper-dark/30 text-xs text-muted-foreground/60 border-b border-rule/40">
+                  —
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -394,4 +556,118 @@ function formatNumber(v: number): string {
   const abs = Math.abs(v);
   const formatted = abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return v < 0 ? `(${formatted})` : formatted;
+}
+
+function RealCell({
+  month,
+  value,
+  isToday,
+  isHover,
+  isSaving,
+  onSave,
+  onMouseEnter,
+}: {
+  month: string;
+  value: number | null;
+  isToday: boolean;
+  isHover: boolean;
+  isSaving: boolean;
+  onSave: (v: number | null) => void;
+  onMouseEnter: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const startEdit = () => {
+    if (isSaving) return;
+    setDraft(value !== null ? String(value) : '');
+    setEditing(true);
+  };
+
+  const commit = () => {
+    const cleaned = draft.replace(/\./g, '').replace(',', '.').trim();
+    if (cleaned === '' || cleaned === '0') {
+      if (value !== null) onSave(null);
+      setEditing(false);
+      return;
+    }
+    const num = Number(cleaned);
+    if (Number.isFinite(num) && (value === null || Math.abs(num - value) > 0.001)) {
+      onSave(Math.round(num * 100) / 100);
+    }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <td
+        className={cn(
+          'px-1 py-1 text-right border-b border-rule/30',
+          isToday && 'bg-accent/30',
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') cancel();
+            if (e.key === 'Tab') commit();
+          }}
+          className="w-full text-right font-mono tabular-nums bg-card border border-foreground/30 rounded-sm px-1.5 py-1 text-xs outline-none focus:border-foreground/60"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className={cn(
+        'px-2 py-2.5 text-right border-b border-rule/30 cursor-pointer transition-colors',
+        isToday && 'bg-accent/20',
+        isHover && 'bg-accent/15',
+        isSaving && 'opacity-50',
+      )}
+      onClick={startEdit}
+      onMouseEnter={onMouseEnter}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          startEdit();
+        }
+      }}
+    >
+      <span
+        className={cn(
+          'tabular-nums text-xs hover:text-foreground transition-colors font-medium',
+          value === null
+            ? 'text-muted-foreground/30'
+            : value > 0
+              ? 'text-money-up'
+              : value < 0
+                ? 'text-money-down'
+                : 'text-foreground',
+        )}
+      >
+        {value === null ? '+' : value === 0 ? '0' : formatNumber(value)}
+      </span>
+    </td>
+  );
 }

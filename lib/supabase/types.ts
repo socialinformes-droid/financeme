@@ -97,6 +97,28 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['budgets']['Insert']>;
         Relationships: [];
       };
+      monthly_actuals: {
+        Row: {
+          id: string;
+          user_id: string;
+          month: string;
+          balance: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          month: string;
+          balance: number;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['monthly_actuals']['Insert']>;
+        Relationships: [];
+      };
       recurring_income: {
         Row: {
           id: string;
@@ -126,3 +148,4 @@ export type CardRow = Database['public']['Tables']['cards']['Row'];
 export type ShoppingItemRow = Database['public']['Tables']['shopping_list']['Row'];
 export type BudgetRow = Database['public']['Tables']['budgets']['Row'];
 export type RecurringIncomeRow = Database['public']['Tables']['recurring_income']['Row'];
+export type MonthlyActualRow = Database['public']['Tables']['monthly_actuals']['Row'];
