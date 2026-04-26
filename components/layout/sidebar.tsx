@@ -18,9 +18,9 @@ type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; phas
 const NAV: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/transactions', label: 'Lançamentos', icon: ArrowDownUp },
-  { href: '/cards', label: 'Cartões', icon: CreditCard, phase: 2 },
-  { href: '/installments', label: 'Parcelas', icon: ListChecks, phase: 2 },
-  { href: '/shopping', label: 'Compras', icon: ShoppingBag, phase: 2 },
+  { href: '/cards', label: 'Cartões', icon: CreditCard },
+  { href: '/installments', label: 'Parcelas', icon: ListChecks },
+  { href: '/shopping', label: 'Compras', icon: ShoppingBag },
   { href: '/forecast', label: 'Previsão', icon: TrendingUp, phase: 3 },
   { href: '/settings', label: 'Edição', icon: Settings, phase: 3 },
 ];
