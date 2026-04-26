@@ -51,20 +51,32 @@ function LabeledSelect({
   options: SelectOption[];
 }) {
   const current = options.find((o) => o.value === value) ?? options[0];
+  // Primeira opção é tratada como "estado neutro" (sem filtro ativo)
+  const isNeutral = current.value === options[0].value;
   return (
     <Select value={value} onValueChange={(v) => onValueChange(v ?? options[0].value)}>
       <SelectTrigger className="w-full">
-        <span className="flex items-center gap-1 truncate">
-          <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider shrink-0">
+        {isNeutral ? (
+          <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider">
             {label}
           </span>
-          <span className="text-foreground/85 truncate">{current.label}</span>
-        </span>
+        ) : (
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider shrink-0">
+              {label}
+            </span>
+            <span className="text-foreground/85 truncate">{current.label}</span>
+          </span>
+        )}
       </SelectTrigger>
       <SelectContent>
-        {options.map((o) => (
+        {options.map((o, i) => (
           <SelectItem key={o.value} value={o.value}>
-            {o.label}
+            {i === 0 ? (
+              <span className="italic text-muted-foreground">{o.label}</span>
+            ) : (
+              o.label
+            )}
           </SelectItem>
         ))}
       </SelectContent>
