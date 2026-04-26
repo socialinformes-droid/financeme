@@ -21,6 +21,8 @@ type PivotProps = {
   monthsCount?: number;
 };
 
+type Hover = { row: string | null; col: string | null };
+
 export function PivotTable({
   data,
   monthAxis: initialAxis = 'expense',
@@ -28,6 +30,7 @@ export function PivotTable({
   monthsCount = 12,
 }: PivotProps) {
   const [monthAxis, setMonthAxis] = useState<'expense' | 'billing'>(initialAxis);
+  const [hover, setHover] = useState<Hover>({ row: null, col: null });
 
   const months = useMemo(
     () => Array.from({ length: monthsCount }, (_, i) => addMonthsToISO(startMonth, i)),
@@ -71,6 +74,10 @@ export function PivotTable({
 
   const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
+  const clearHover = () => setHover({ row: null, col: null });
+  const isColHover = (m: string) => hover.col === m;
+  const isRowHover = (rowId: string) => hover.row === rowId;
+
   return (
     <div className="rounded-md border border-rule/70 bg-card overflow-hidden">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 border-b-2 border-double border-rule/80 bg-paper-dark/40">
@@ -108,7 +115,7 @@ export function PivotTable({
         </div>
       </header>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" onMouseLeave={clearHover}>
         <table className="w-full text-xs font-mono border-separate border-spacing-0">
           <thead>
             <tr>
@@ -121,8 +128,9 @@ export function PivotTable({
                 <th
                   key={m}
                   className={cn(
-                    'px-2 py-2.5 text-right font-medium whitespace-nowrap border-b-2 border-rule/80 text-foreground',
+                    'px-2 py-2.5 text-right font-medium whitespace-nowrap border-b-2 border-rule/80 text-foreground transition-colors',
                     m === todayKey && 'bg-accent/30',
+                    isColHover(m) && 'bg-accent/40 text-foreground',
                   )}
                 >
                   <span className="font-display italic font-medium not-italic">
@@ -139,37 +147,51 @@ export function PivotTable({
             {expenseSection.rows.length > 0 && (
               <Section
                 label="Saídas"
+                sectionId="expense"
                 color="red"
                 rows={expenseSection.rows}
                 totalsByMonth={expenseSection.totalsByMonth}
                 grandTotal={expenseSection.grandTotal}
                 months={months}
                 todayKey={todayKey}
+                hover={hover}
+                setHover={setHover}
               />
             )}
 
             {incomeSection.rows.length > 0 && (
               <Section
                 label="Entradas"
+                sectionId="income"
                 color="green"
                 rows={incomeSection.rows}
                 totalsByMonth={incomeSection.totalsByMonth}
                 grandTotal={incomeSection.grandTotal}
                 months={months}
                 todayKey={todayKey}
+                hover={hover}
+                setHover={setHover}
               />
             )}
 
-            <tr className="bg-paper-dark/50 font-medium border-double">
+            <tr
+              className={cn(
+                'bg-paper-dark/50 font-medium border-double',
+                isRowHover('total') && 'bg-paper-dark/70',
+              )}
+              onMouseEnter={() => setHover((h) => ({ ...h, row: 'total' }))}
+            >
               <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-3 border-t-2 border-double border-rule">
                 <span className="font-display text-sm italic">Total geral</span>
               </td>
               {totalsByMonth.map((v, i) => (
                 <td
                   key={months[i]}
+                  onMouseEnter={() => setHover({ row: 'total', col: months[i] })}
                   className={cn(
-                    'px-2 py-3 text-right tabular-nums border-t-2 border-double border-rule font-medium text-sm',
+                    'px-2 py-3 text-right tabular-nums border-t-2 border-double border-rule font-medium text-sm transition-colors',
                     months[i] === todayKey && 'bg-accent/40',
+                    isColHover(months[i]) && 'bg-accent/30',
                     v > 0 ? 'text-money-up' : v < 0 ? 'text-money-down' : 'text-muted-foreground/50',
                   )}
                 >
@@ -226,29 +248,43 @@ function buildSection(
 
 function Section({
   label,
+  sectionId,
   color,
   rows,
   totalsByMonth,
   grandTotal,
   months,
   todayKey,
+  hover,
+  setHover,
 }: {
   label: string;
+  sectionId: string;
   color: 'red' | 'green';
   rows: SectionData['rows'];
   totalsByMonth: SectionData['totalsByMonth'];
   grandTotal: number;
   months: string[];
   todayKey: string;
+  hover: Hover;
+  setHover: React.Dispatch<React.SetStateAction<Hover>>;
 }) {
   const [open, setOpen] = useState(true);
   const colorClass = color === 'red' ? 'text-money-down' : 'text-money-up';
   const arrow = color === 'red' ? '↑' : '↓';
+  const headerRowId = `${sectionId}-header`;
+  const isColHover = (m: string) => hover.col === m;
+  const isRowHover = (rowId: string) => hover.row === rowId;
+
   return (
     <>
       <tr
-        className="bg-paper-dark/40 hover:bg-paper-dark/60 cursor-pointer transition-colors"
+        className={cn(
+          'bg-paper-dark/40 hover:bg-paper-dark/60 cursor-pointer transition-colors',
+          isRowHover(headerRowId) && 'bg-paper-dark/60',
+        )}
         onClick={() => setOpen(!open)}
+        onMouseEnter={() => setHover((h) => ({ ...h, row: headerRowId }))}
       >
         <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2 font-medium">
           <span className="flex items-center gap-2">
@@ -267,9 +303,11 @@ function Section({
           return (
             <td
               key={m}
+              onMouseEnter={() => setHover({ row: headerRowId, col: m })}
               className={cn(
-                'px-2 py-2 text-right tabular-nums font-medium',
+                'px-2 py-2 text-right tabular-nums font-medium transition-colors',
                 m === todayKey && 'bg-accent/30',
+                isColHover(m) && 'bg-accent/30',
                 v === 0 ? 'text-muted-foreground/40' : colorClass,
               )}
             >
@@ -283,44 +321,70 @@ function Section({
       </tr>
 
       {open &&
-        rows.map((row) => (
-          <tr key={`${label}-${row.category}`} className="hover:bg-paper-dark/15 transition-colors">
-            <td className="sticky left-0 z-10 bg-card px-4 py-2 pl-9">
-              <span className="inline-flex items-center gap-2.5">
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{
-                    background:
-                      CATEGORY_COLOR[row.category as keyof typeof CATEGORY_COLOR] ?? '#737373',
-                  }}
-                />
-                <span className="text-foreground/80">{row.category}</span>
-              </span>
-            </td>
-            {months.map((m) => {
-              const v = row.byMonth.get(m) ?? 0;
-              return (
-                <td
-                  key={m}
-                  className={cn(
-                    'px-2 py-2 text-right tabular-nums',
-                    m === todayKey && 'bg-accent/20',
-                    v === 0
-                      ? 'text-muted-foreground/30'
-                      : v < 0
-                        ? 'text-money-down/85'
-                        : 'text-money-up/85',
-                  )}
-                >
-                  {v === 0 ? '·' : formatNumber(v)}
-                </td>
-              );
-            })}
-            <td className={cn('px-3 py-2 text-right tabular-nums bg-paper-dark/30 font-medium', colorClass)}>
-              {formatNumber(row.total)}
-            </td>
-          </tr>
-        ))}
+        rows.map((row) => {
+          const rowId = `${sectionId}-${row.category}`;
+          return (
+            <tr
+              key={`${label}-${row.category}`}
+              className={cn(
+                'transition-colors',
+                isRowHover(rowId) ? 'bg-paper-dark/30' : 'hover:bg-paper-dark/15',
+              )}
+              onMouseEnter={() => setHover((h) => ({ ...h, row: rowId }))}
+            >
+              <td
+                className={cn(
+                  'sticky left-0 z-10 bg-card px-4 py-2 pl-9 transition-colors',
+                  isRowHover(rowId) && 'bg-paper-dark/40',
+                )}
+              >
+                <span className="inline-flex items-center gap-2.5">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                    style={{
+                      background:
+                        CATEGORY_COLOR[row.category as keyof typeof CATEGORY_COLOR] ?? '#737373',
+                    }}
+                  />
+                  <span className="text-foreground/80">{row.category}</span>
+                </span>
+              </td>
+              {months.map((m) => {
+                const v = row.byMonth.get(m) ?? 0;
+                const isCross = isColHover(m) || isRowHover(rowId);
+                const isIntersection = isColHover(m) && isRowHover(rowId);
+                return (
+                  <td
+                    key={m}
+                    onMouseEnter={() => setHover({ row: rowId, col: m })}
+                    className={cn(
+                      'px-2 py-2 text-right tabular-nums transition-colors',
+                      m === todayKey && 'bg-accent/20',
+                      isCross && !isIntersection && 'bg-accent/20',
+                      isIntersection && 'bg-accent/50 text-foreground font-medium',
+                      v === 0
+                        ? 'text-muted-foreground/30'
+                        : v < 0
+                          ? 'text-money-down/85'
+                          : 'text-money-up/85',
+                    )}
+                  >
+                    {v === 0 ? '·' : formatNumber(v)}
+                  </td>
+                );
+              })}
+              <td
+                className={cn(
+                  'px-3 py-2 text-right tabular-nums bg-paper-dark/30 font-medium transition-colors',
+                  colorClass,
+                  isRowHover(rowId) && 'bg-paper-dark/50',
+                )}
+              >
+                {formatNumber(row.total)}
+              </td>
+            </tr>
+          );
+        })}
     </>
   );
 }
