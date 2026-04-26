@@ -56,7 +56,13 @@ export function firstDayOfMonth(d: Date): Date {
 
 export function addMonths(d: Date, months: number): Date {
   // Constrói via componentes locais para evitar drift de timezone.
-  return new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
+  // Clamp do dia ao último dia do mês destino: 31/jan + 1 mês = 28/fev (não 03/mar).
+  const targetYear = d.getFullYear();
+  const targetMonth = d.getMonth() + months;
+  // último dia do mês destino: dia 0 do mês seguinte
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const day = Math.min(d.getDate(), lastDay);
+  return new Date(targetYear, targetMonth, day);
 }
 
 /**

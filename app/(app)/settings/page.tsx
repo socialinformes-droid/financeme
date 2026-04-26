@@ -15,7 +15,7 @@ export default async function SettingsPage() {
     supabase
       .from('recurring_income')
       .select('*')
-      .order('created_at' as never, { ascending: false }),
+      .order('description', { ascending: true }),
     supabase.from('budgets').select('*').order('month', { ascending: false }),
     supabase
       .from('transactions')

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { Database } from '@/lib/supabase/types';
 
-const PUBLIC_PATHS = ['/login', '/callback', '/auto-login'];
+const PUBLIC_PATHS = ['/login', '/callback'];
 const ROOT_PATHS = ['/'];
 
 export async function updateSession(request: NextRequest) {

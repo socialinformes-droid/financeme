@@ -297,14 +297,12 @@ export function PivotTable({
                     />
                   );
                 })}
-                <td className="px-3 py-2.5 text-right tabular-nums bg-paper-dark/30 font-medium text-foreground/70 border-b border-rule/30">
+                <td className="px-3 py-2.5 text-right text-[10px] text-muted-foreground/60 italic bg-paper-dark/30 border-b border-rule/30">
                   {(() => {
-                    const sum = months.reduce(
-                      (a, m) => a + (actualsByMonth.get(m) ?? 0),
-                      0,
-                    );
-                    const filled = months.some((m) => actualsByMonth.has(m));
-                    return filled ? formatNumber(sum) : '—';
+                    const filled = [...actualsByMonth.values()];
+                    return filled.length > 0
+                      ? `${filled.length} ${filled.length === 1 ? 'mês' : 'meses'}`
+                      : '—';
                   })()}
                 </td>
               </tr>
