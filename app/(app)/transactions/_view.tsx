@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Trash2, CheckCircle2, Pencil } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2, Pencil, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORIES } from '@/lib/domain/categories';
@@ -34,6 +34,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { TransactionForm } from '@/components/forms/transaction-form';
+import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import type { TransactionRow, CardRow } from '@/lib/supabase/types';
 
 type Filters = {
@@ -60,6 +61,7 @@ export function TransactionsView({
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     type: 'all',
@@ -138,43 +140,70 @@ export function TransactionsView({
             </span>
           </p>
         </div>
-        <Sheet
-          open={open || !!editing}
-          onOpenChange={(o) => {
-            if (!o) {
-              setOpen(false);
-              setEditing(null);
-            }
-          }}
-        >
-          <SheetTrigger render={<Button />} onClick={() => setOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo lançamento
-          </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>{editing ? 'Editar lançamento' : 'Novo lançamento'}</SheetTitle>
-              <SheetDescription>
-                {editing
-                  ? 'As mudanças são aplicadas só nesta linha.'
-                  : 'Crédito calcula o mês da fatura automaticamente. Ative parcelado para gerar N transações.'}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-4 px-4 pb-4">
-              <TransactionForm
-                key={editing?.id ?? 'new'}
-                userId={userId}
-                cards={cards}
-                editing={editing}
-                onDone={() => {
-                  setOpen(false);
-                  setEditing(null);
-                  refresh();
-                }}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="flex gap-2">
+          <Sheet open={bulkOpen} onOpenChange={setBulkOpen}>
+            <SheetTrigger render={<Button variant="outline" />} onClick={() => setBulkOpen(true)}>
+              <Layers className="mr-2 h-4 w-4" />
+              Em massa
+            </SheetTrigger>
+            <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Lançamento em massa</SheetTitle>
+                <SheetDescription>
+                  Cria várias transações de uma vez — uma por mês com valores que podem variar. Mês com R$ 0 é pulado.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 px-4 pb-4">
+                <BulkTransactionsForm
+                  userId={userId}
+                  cards={cards}
+                  onDone={() => {
+                    setBulkOpen(false);
+                    refresh();
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          <Sheet
+            open={open || !!editing}
+            onOpenChange={(o) => {
+              if (!o) {
+                setOpen(false);
+                setEditing(null);
+              }
+            }}
+          >
+            <SheetTrigger render={<Button />} onClick={() => setOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo
+            </SheetTrigger>
+            <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>{editing ? 'Editar lançamento' : 'Novo lançamento'}</SheetTitle>
+                <SheetDescription>
+                  {editing
+                    ? 'As mudanças são aplicadas só nesta linha.'
+                    : 'Crédito calcula o mês da fatura automaticamente. Ative parcelado para gerar N transações.'}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 px-4 pb-4">
+                <TransactionForm
+                  key={editing?.id ?? 'new'}
+                  userId={userId}
+                  cards={cards}
+                  editing={editing}
+                  onDone={() => {
+                    setOpen(false);
+                    setEditing(null);
+                    refresh();
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       {/* Filtros */}
