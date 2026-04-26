@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
 import {
-  addMonths,
   firstDayOfMonth,
   formatBRL,
   formatDateBR,
@@ -8,8 +7,7 @@ import {
   toISODate,
 } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { IncomeVsExpenseChart, type MonthlySummary } from '@/components/charts/income-vs-expense-chart';
-import { CategoryPieChart, type CategorySlice } from '@/components/charts/category-pie-chart';
+import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
 import { PivotTable, type PivotRow } from '@/components/pivot-table';
 import type { TransactionRow, ShoppingItemRow } from '@/lib/supabase/types';
 import { ExternalLink } from 'lucide-react';
@@ -19,11 +17,10 @@ export const dynamic = 'force-dynamic';
 export default async function Dashboard() {
   const supabase = await createClient();
 
-  // Janela: o ano atual inteiro (jan → dez do ano corrente).
-  // O dataset 2026 cobre jan/26 a dez/26 + 1 row em jan/27.
   const today = new Date();
   const year = today.getFullYear();
   const startOfYear = `${year}-01-01`;
+  const currentMonthKey = toISODate(firstDayOfMonth(today));
 
   const { data: allTxs, error: txError } = await supabase
     .from('transactions')
@@ -33,8 +30,7 @@ export default async function Dashboard() {
   if (txError) console.error('[dashboard tx]', txError);
   const txs = (allTxs ?? []) as TransactionRow[];
 
-  // -------- Cards do mês atual (a partir de transactions com expense_month = mês atual) --------
-  const currentMonthKey = toISODate(firstDayOfMonth(today));
+  // Cards do mês atual
   let monthIncome = 0;
   let monthExpense = 0;
   for (const t of txs) {
@@ -44,7 +40,7 @@ export default async function Dashboard() {
   }
   const monthBalance = monthIncome - monthExpense;
 
-  // Acumulado do ano (todas as transações dentro do ano corrente)
+  // Acumulado do ano
   let yearBalance = 0;
   for (const t of txs) {
     if (!t.expense_month) continue;
@@ -53,28 +49,13 @@ export default async function Dashboard() {
     yearBalance += Number(t.amount);
   }
 
-  // -------- BarChart 12 meses (jan → dez do ano corrente) --------
-  const monthly: MonthlySummary[] = [];
-  for (let i = 0; i < 12; i++) {
-    const m = `${year}-${String(i + 1).padStart(2, '0')}-01`;
-    const sub = txs.filter((t) => t.expense_month === m);
-    const inc = sub.filter((t) => t.type === 'income').reduce((a, t) => a + Number(t.amount), 0);
-    const exp = sub.filter((t) => t.type === 'expense').reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
-    monthly.push({ month: m, label: formatMonthBR(m), income: inc, expense: exp });
-  }
+  const chartTxs: ChartTransaction[] = txs.map((t) => ({
+    type: t.type,
+    category: t.category,
+    amount: Number(t.amount),
+    expense_month: t.expense_month,
+  }));
 
-  // -------- PieChart do mês atual --------
-  const sliceMap = new Map<string, number>();
-  for (const t of txs) {
-    if (t.expense_month !== currentMonthKey) continue;
-    if (t.type !== 'expense') continue;
-    sliceMap.set(t.category, (sliceMap.get(t.category) ?? 0) + Math.abs(Number(t.amount)));
-  }
-  const slices: CategorySlice[] = [...sliceMap.entries()]
-    .map(([category, value]) => ({ category, value }))
-    .sort((a, b) => b.value - a.value);
-
-  // -------- Pivot table (todas as 137 transações do ano) --------
   const pivotRows: PivotRow[] = txs.map((t) => ({
     type: t.type,
     category: t.category,
@@ -83,12 +64,10 @@ export default async function Dashboard() {
     billing_month: t.billing_month,
   }));
 
-  // -------- Próximas parcelas (mês atual, não pagas) --------
   const upcomingInstallments = txs
     .filter((t) => t.is_installment && t.billing_month === currentMonthKey && !t.is_paid)
     .slice(0, 6);
 
-  // -------- Top 3 lista de compras --------
   const { data: shoppingTop } = await supabase
     .from('shopping_list')
     .select('*')
@@ -108,12 +87,11 @@ export default async function Dashboard() {
         </div>
       </header>
 
-      {/* Cards de resumo */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard label={`Entradas — ${formatMonthBR(currentMonthKey)}`} value={monthIncome} accent="green" />
         <SummaryCard label={`Saídas — ${formatMonthBR(currentMonthKey)}`} value={-monthExpense} accent="red" />
         <SummaryCard
-          label={`Saldo do mês`}
+          label="Saldo do mês"
           value={monthBalance}
           accent={monthBalance >= 0 ? 'green' : 'red'}
         />
@@ -124,44 +102,18 @@ export default async function Dashboard() {
         />
       </section>
 
-      {/* Tabela dinâmica — visualização principal */}
       <section>
         <PivotTable data={pivotRows} startMonth={`${year}-01-01`} monthsCount={12} />
       </section>
 
-      {/* Gráficos auxiliares */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Entradas vs Saídas — {year}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <IncomeVsExpenseChart data={monthly} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Categorias — {formatMonthBR(currentMonthKey)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CategoryPieChart data={slices} />
-            {slices.length > 0 && (
-              <ul className="mt-3 space-y-1.5 text-xs max-h-32 overflow-y-auto">
-                {slices.slice(0, 6).map((s) => (
-                  <li key={s.category} className="flex justify-between">
-                    <span className="text-muted-foreground">{s.category}</span>
-                    <span className="font-medium">{formatBRL(s.value)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      <section>
+        <ChartsSection
+          transactions={chartTxs}
+          yearStart={startOfYear}
+          todayKey={currentMonthKey}
+        />
       </section>
 
-      {/* Próximas parcelas + lista compras */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>

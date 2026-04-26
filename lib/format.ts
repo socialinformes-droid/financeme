@@ -15,8 +15,15 @@ export function formatBRLSigned(value: number): string {
   return `${sign} ${brl.format(Math.abs(value))}`;
 }
 
+const MONTH_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
 export function formatDateBR(input: string | Date | null | undefined): string {
   if (!input) return '';
+  if (typeof input === 'string') {
+    // Strings ISO 'YYYY-MM-DD[...]' tratamos como data calendário pura (sem fuso).
+    const m = input.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
   const d = typeof input === 'string' ? new Date(input) : input;
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -24,13 +31,17 @@ export function formatDateBR(input: string | Date | null | undefined): string {
 
 export function formatMonthBR(input: string | Date | null | undefined): string {
   if (!input) return '';
+  if (typeof input === 'string') {
+    const m = input.match(/^(\d{4})-(\d{2})/);
+    if (m) {
+      const monthIdx = Number(m[2]) - 1;
+      const yy = m[1].slice(2);
+      return `${MONTH_SHORT[monthIdx]}/${yy}`;
+    }
+  }
   const d = typeof input === 'string' ? new Date(input) : input;
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('pt-BR', {
-    month: 'short',
-    year: '2-digit',
-    timeZone: 'America/Sao_Paulo',
-  }).replace('.', '');
+  return `${MONTH_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
 }
 
 export function toMonthDate(year: number, monthZeroBased: number): string {

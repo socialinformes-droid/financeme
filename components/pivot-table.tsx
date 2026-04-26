@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatBRL, formatMonthBR, addMonthsToISO } from '@/lib/format';
+import { formatMonthBR, addMonthsToISO } from '@/lib/format';
 import { CATEGORY_COLOR } from '@/lib/domain/categories';
 
 export type PivotRow = {
@@ -16,9 +16,7 @@ export type PivotRow = {
 
 type PivotProps = {
   data: PivotRow[];
-  /** Eixo do mês: gasto (quando aconteceu) ou fatura (quando sai do bolso) */
   monthAxis?: 'expense' | 'billing';
-  /** Mês de partida (string ISO YYYY-MM-01). Default: jan/2026 */
   startMonth?: string;
   monthsCount?: number;
 };
@@ -32,12 +30,10 @@ export function PivotTable({
   const [monthAxis, setMonthAxis] = useState<'expense' | 'billing'>(initialAxis);
 
   const months = useMemo(
-    () =>
-      Array.from({ length: monthsCount }, (_, i) => addMonthsToISO(startMonth, i)),
+    () => Array.from({ length: monthsCount }, (_, i) => addMonthsToISO(startMonth, i)),
     [startMonth, monthsCount],
   );
 
-  // Agrupa: type → category → month → soma
   const grouped = useMemo(() => {
     const map = new Map<string, Map<string, Map<string, number>>>();
     let outOfRange = 0;
@@ -48,10 +44,16 @@ export function PivotTable({
         outOfRange += row.amount;
         continue;
       }
-      const tBucket = map.get(row.type) ?? new Map();
-      map.set(row.type, tBucket);
-      const cBucket = tBucket.get(row.category) ?? new Map();
-      tBucket.set(row.category, cBucket);
+      let tBucket = map.get(row.type);
+      if (!tBucket) {
+        tBucket = new Map();
+        map.set(row.type, tBucket);
+      }
+      let cBucket = tBucket.get(row.category);
+      if (!cBucket) {
+        cBucket = new Map();
+        tBucket.set(row.category, cBucket);
+      }
       cBucket.set(m, (cBucket.get(m) ?? 0) + row.amount);
     }
     return { map, outOfRange };
@@ -61,15 +63,17 @@ export function PivotTable({
   const incomeSection = buildSection(grouped.map.get('income'), months);
 
   const totalsByMonth = months.map((m) => {
-    const expSum = expenseSection.totalsByMonth.get(m) ?? 0;
-    const incSum = incomeSection.totalsByMonth.get(m) ?? 0;
-    return expSum + incSum;
+    const exp = expenseSection.totalsByMonth.get(m) ?? 0;
+    const inc = incomeSection.totalsByMonth.get(m) ?? 0;
+    return exp + inc;
   });
   const totalGeral = totalsByMonth.reduce((a, b) => a + b, 0);
 
+  const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+
   return (
     <div className="rounded-md border bg-card">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
         <div>
           <h3 className="text-sm font-medium">Visão mensal por categoria</h3>
           <p className="text-xs text-muted-foreground">
@@ -78,7 +82,7 @@ export function PivotTable({
             {formatMonthBR(months[0])} → {formatMonthBR(months[months.length - 1])}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg bg-muted p-0.5 text-xs">
+        <div className="flex gap-1 rounded-lg bg-muted p-0.5 text-xs self-start">
           <button
             onClick={() => setMonthAxis('expense')}
             className={cn(
@@ -105,27 +109,31 @@ export function PivotTable({
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono">
-          <thead className="bg-muted/50">
+        <table className="w-full text-xs font-mono border-separate border-spacing-0">
+          <thead>
             <tr className="text-muted-foreground">
-              <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-medium w-32">
-                Fluxo
-              </th>
-              <th className="sticky left-32 z-10 bg-muted/50 px-3 py-2 text-left font-medium w-32">
+              <th
+                className="sticky left-0 z-20 bg-muted/95 backdrop-blur px-3 py-2 text-left font-medium border-b min-w-[180px]"
+              >
                 Categoria
               </th>
               {months.map((m) => (
-                <th key={m} className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                <th
+                  key={m}
+                  className={cn(
+                    'px-2 py-2 text-right font-medium whitespace-nowrap border-b bg-muted/50',
+                    m === todayKey && 'text-foreground bg-muted',
+                  )}
+                >
                   {formatMonthBR(m)}
                 </th>
               ))}
-              <th className="px-3 py-2 text-right font-medium whitespace-nowrap bg-muted/70">
+              <th className="px-3 py-2 text-right font-medium whitespace-nowrap bg-muted/70 border-b">
                 Total
               </th>
             </tr>
           </thead>
           <tbody>
-            {/* SAÍDAS */}
             {expenseSection.rows.length > 0 && (
               <Section
                 label="⬆ Saídas"
@@ -134,10 +142,10 @@ export function PivotTable({
                 totalsByMonth={expenseSection.totalsByMonth}
                 grandTotal={expenseSection.grandTotal}
                 months={months}
+                todayKey={todayKey}
               />
             )}
 
-            {/* ENTRADAS */}
             {incomeSection.rows.length > 0 && (
               <Section
                 label="⬇ Entradas"
@@ -146,20 +154,21 @@ export function PivotTable({
                 totalsByMonth={incomeSection.totalsByMonth}
                 grandTotal={incomeSection.grandTotal}
                 months={months}
+                todayKey={todayKey}
               />
             )}
 
-            {/* TOTAL GERAL */}
-            <tr className="border-t-2 border-foreground/20 bg-muted/30 font-semibold">
-              <td colSpan={2} className="sticky left-0 bg-muted/60 px-3 py-2.5">
+            <tr className="bg-muted/40 font-semibold border-t-2 border-foreground/30">
+              <td className="sticky left-0 z-10 bg-muted/95 backdrop-blur px-3 py-2.5 border-t-2 border-foreground/30">
                 Total geral
               </td>
               {totalsByMonth.map((v, i) => (
                 <td
                   key={months[i]}
                   className={cn(
-                    'px-2 py-2.5 text-right tabular-nums',
-                    v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-muted-foreground',
+                    'px-2 py-2.5 text-right tabular-nums border-t-2 border-foreground/30',
+                    months[i] === todayKey && 'bg-muted/60',
+                    v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-muted-foreground/50',
                   )}
                 >
                   {v === 0 ? '—' : formatNumber(v)}
@@ -167,7 +176,7 @@ export function PivotTable({
               ))}
               <td
                 className={cn(
-                  'px-3 py-2.5 text-right tabular-nums bg-muted/80',
+                  'px-3 py-2.5 text-right tabular-nums bg-muted/80 border-t-2 border-foreground/30',
                   totalGeral > 0 ? 'text-green-400' : totalGeral < 0 ? 'text-red-400' : '',
                 )}
               >
@@ -180,7 +189,7 @@ export function PivotTable({
 
       {grouped.outOfRange !== 0 && (
         <p className="px-4 py-2 text-[11px] text-muted-foreground border-t">
-          {formatBRL(grouped.outOfRange)} fora da janela ({formatMonthBR(months[0])} → {formatMonthBR(months[months.length - 1])})
+          {formatNumber(grouped.outOfRange)} fora da janela
         </p>
       )}
     </div>
@@ -198,14 +207,12 @@ function buildSection(
   months: string[],
 ): SectionData {
   if (!bucket) return { rows: [], totalsByMonth: new Map(), grandTotal: 0 };
-
   const rows = [...bucket.entries()]
     .map(([category, byMonth]) => {
       const total = [...byMonth.values()].reduce((a, b) => a + b, 0);
       return { category, byMonth, total };
     })
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
-
   const totalsByMonth = new Map<string, number>();
   for (const m of months) {
     const sum = rows.reduce((acc, r) => acc + (r.byMonth.get(m) ?? 0), 0);
@@ -222,6 +229,7 @@ function Section({
   totalsByMonth,
   grandTotal,
   months,
+  todayKey,
 }: {
   label: string;
   color: 'red' | 'green';
@@ -229,17 +237,21 @@ function Section({
   totalsByMonth: SectionData['totalsByMonth'];
   grandTotal: number;
   months: string[];
+  todayKey: string;
 }) {
   const [open, setOpen] = useState(true);
   const colorClass = color === 'red' ? 'text-red-400' : 'text-green-400';
   return (
     <>
-      <tr className="bg-muted/20 hover:bg-muted/30 cursor-pointer" onClick={() => setOpen(!open)}>
-        <td colSpan={2} className="sticky left-0 bg-muted/40 px-3 py-2 font-medium">
-          <div className="flex items-center gap-1.5">
+      <tr
+        className="bg-muted/30 hover:bg-muted/40 cursor-pointer transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        <td className="sticky left-0 z-10 bg-muted/95 backdrop-blur px-3 py-2 font-medium">
+          <span className="flex items-center gap-1.5">
             {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             <span className={colorClass}>{label}</span>
-          </div>
+          </span>
         </td>
         {months.map((m) => {
           const v = totalsByMonth.get(m) ?? 0;
@@ -248,23 +260,23 @@ function Section({
               key={m}
               className={cn(
                 'px-2 py-2 text-right tabular-nums font-medium',
-                v === 0 ? 'text-muted-foreground' : colorClass,
+                m === todayKey && 'bg-muted/40',
+                v === 0 ? 'text-muted-foreground/50' : colorClass,
               )}
             >
               {v === 0 ? '—' : formatNumber(v)}
             </td>
           );
         })}
-        <td className={cn('px-3 py-2 text-right tabular-nums font-semibold bg-muted/40', colorClass)}>
+        <td className={cn('px-3 py-2 text-right tabular-nums font-semibold bg-muted/50', colorClass)}>
           {formatNumber(grandTotal)}
         </td>
       </tr>
 
       {open &&
         rows.map((row) => (
-          <tr key={`${label}-${row.category}`} className="hover:bg-muted/20">
-            <td className="sticky left-0 bg-card px-3 py-1.5"></td>
-            <td className="sticky left-32 bg-card px-3 py-1.5">
+          <tr key={`${label}-${row.category}`} className="hover:bg-muted/15 transition-colors">
+            <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-8">
               <span className="inline-flex items-center gap-2">
                 <span
                   className="inline-block h-2 w-2 rounded-full shrink-0"
@@ -273,7 +285,7 @@ function Section({
                       CATEGORY_COLOR[row.category as keyof typeof CATEGORY_COLOR] ?? '#737373',
                   }}
                 />
-                {row.category}
+                <span className="text-foreground/80">{row.category}</span>
               </span>
             </td>
             {months.map((m) => {
@@ -283,18 +295,19 @@ function Section({
                   key={m}
                   className={cn(
                     'px-2 py-1.5 text-right tabular-nums',
+                    m === todayKey && 'bg-muted/30',
                     v === 0
-                      ? 'text-muted-foreground/60'
+                      ? 'text-muted-foreground/40'
                       : v < 0
-                        ? 'text-red-400/90'
-                        : 'text-green-400/90',
+                        ? 'text-red-400/85'
+                        : 'text-green-400/85',
                   )}
                 >
                   {v === 0 ? '—' : formatNumber(v)}
                 </td>
               );
             })}
-            <td className={cn('px-3 py-1.5 text-right tabular-nums bg-muted/30 font-medium', colorClass)}>
+            <td className={cn('px-3 py-1.5 text-right tabular-nums bg-muted/40 font-medium', colorClass)}>
               {formatNumber(row.total)}
             </td>
           </tr>
