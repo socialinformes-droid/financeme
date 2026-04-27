@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { CATEGORIES } from '@/lib/domain/categories';
+import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { calculateBillingMonth } from '@/lib/domain/billing';
 import { createInstallmentTransactions } from '@/lib/domain/installments';
 import { firstDayOfMonth, formatBRL, toISODate } from '@/lib/format';
@@ -44,12 +44,17 @@ type FormValues = z.infer<typeof schema>;
 export type TransactionFormProps = {
   userId: string;
   cards: CardRow[];
+  /** Categorias do user (do DB). Se vazio/omitido, usa DEFAULT_CATEGORIES. */
+  categories?: ReadonlyArray<{ name: string }>;
   onDone?: () => void;
   /** Quando passado, o formulário vira modo edit e faz UPDATE em vez de INSERT. */
   editing?: TransactionRow | null;
 };
 
-export function TransactionForm({ userId, cards, onDone, editing }: TransactionFormProps) {
+export function TransactionForm({ userId, cards, categories, onDone, editing }: TransactionFormProps) {
+  const categoryList = categories?.length
+    ? categories.map((c) => c.name)
+    : DEFAULT_CATEGORIES.map((c) => c.name);
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!editing;
 
@@ -270,7 +275,7 @@ export function TransactionForm({ userId, cards, onDone, editing }: TransactionF
               <Select value={field.value} onValueChange={(v) => field.onChange(v ?? 'Outros')}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
+                  {categoryList.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>

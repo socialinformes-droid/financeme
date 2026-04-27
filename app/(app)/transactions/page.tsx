@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import type { TransactionRow, CardRow } from '@/lib/supabase/types';
+import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 import { resolveYear } from '@/lib/domain/years';
 import { TransactionsView } from './_view';
 
@@ -21,7 +21,7 @@ export default async function TransactionsPage({
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year + 1}-01-01`;
 
-  const [{ data: transactions }, { data: cards }] = await Promise.all([
+  const [{ data: transactions }, { data: cards }, { data: categories }] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
@@ -30,6 +30,7 @@ export default async function TransactionsPage({
       .order('transaction_date', { ascending: false })
       .limit(2000),
     supabase.from('cards').select('*').order('name'),
+    supabase.from('categories').select('*').eq('is_active', true).order('name'),
   ]);
 
   return (
@@ -37,6 +38,7 @@ export default async function TransactionsPage({
       userId={user.id}
       initialTransactions={(transactions ?? []) as TransactionRow[]}
       cards={(cards ?? []) as CardRow[]}
+      categories={(categories ?? []) as CategoryRow[]}
       year={year}
     />
   );

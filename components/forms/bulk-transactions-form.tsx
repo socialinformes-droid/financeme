@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Wand2, ArrowDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { CATEGORIES } from '@/lib/domain/categories';
+import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { calculateBillingMonth } from '@/lib/domain/billing';
 import { addMonthsToISO, formatBRL, formatMonthBR } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -43,11 +43,15 @@ type Row = { month: string; amount: number };
 export type BulkTransactionsFormProps = {
   userId: string;
   cards: CardRow[];
+  categories?: ReadonlyArray<{ name: string }>;
   onDone?: () => void;
 };
 
-export function BulkTransactionsForm({ userId, cards, onDone }: BulkTransactionsFormProps) {
+export function BulkTransactionsForm({ userId, cards, categories, onDone }: BulkTransactionsFormProps) {
   const [submitting, setSubmitting] = useState(false);
+  const categoryList = categories?.length
+    ? categories.map((c) => c.name)
+    : DEFAULT_CATEGORIES.map((c) => c.name);
 
   // Meta
   const [description, setDescription] = useState('');
@@ -226,7 +230,7 @@ export function BulkTransactionsForm({ userId, cards, onDone }: BulkTransactions
           <Select value={category} onValueChange={(v) => setCategory(v ?? 'Outros')}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map((c) => (
+              {categoryList.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>

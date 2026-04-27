@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Search, Trash2, CheckCircle2, Pencil, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { CATEGORIES } from '@/lib/domain/categories';
+import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { formatBRL, formatDateBR, formatMonthBR } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/sheet';
 import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
-import type { TransactionRow, CardRow } from '@/lib/supabase/types';
+import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
 type SelectOption = { value: string; label: string };
 
@@ -99,13 +99,18 @@ export function TransactionsView({
   userId,
   initialTransactions,
   cards,
+  categories,
   year,
 }: {
   userId: string;
   initialTransactions: TransactionRow[];
   cards: CardRow[];
+  categories: CategoryRow[];
   year: number;
 }) {
+  const categoryNames = categories.length
+    ? categories.map((c) => c.name)
+    : DEFAULT_CATEGORIES.map((c) => c.name);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -208,6 +213,7 @@ export function TransactionsView({
                 <BulkTransactionsForm
                   userId={userId}
                   cards={cards}
+                  categories={categories}
                   onDone={() => {
                     setBulkOpen(false);
                     refresh();
@@ -244,6 +250,7 @@ export function TransactionsView({
                   key={editing?.id ?? 'new'}
                   userId={userId}
                   cards={cards}
+                  categories={categories}
                   editing={editing}
                   onDone={() => {
                     setOpen(false);
@@ -296,7 +303,7 @@ export function TransactionsView({
           onValueChange={(v) => setFilters((f) => ({ ...f, category: v ?? ALL }))}
           options={[
             { value: ALL, label: 'todas' },
-            ...CATEGORIES.map((c) => ({ value: c, label: c })),
+            ...categoryNames.map((c) => ({ value: c, label: c })),
           ]}
         />
         <LabeledSelect
