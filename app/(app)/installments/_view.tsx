@@ -36,6 +36,7 @@ export type Group = {
   endMonth: string;
   rows: TransactionRow[];
   status: 'active' | 'finished' | 'upcoming';
+  kind: 'installment' | 'recurring';
 };
 
 export function InstallmentsView({
@@ -85,10 +86,10 @@ export function InstallmentsView({
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 pb-4 border-b border-rule/60">
         <div>
           <p className="eyebrow">Caderno de</p>
-          <h2 className="headline text-4xl font-light tracking-tight">Parcelas</h2>
+          <h2 className="headline text-4xl font-light tracking-tight">Parcelas e recorrentes</h2>
           <p className="text-xs italic text-muted-foreground mt-1.5">
             <span className="font-mono not-italic mr-1">{year}</span> · {groups.length}{' '}
-            {groups.length === 1 ? 'grupo ativo' : 'grupos ativos'} · ainda devo{' '}
+            {groups.length === 1 ? 'grupo ativo' : 'grupos ativos'} · em aberto{' '}
             <span className="font-mono not-italic text-money-down">{formatBRL(totalActive)}</span>
           </p>
         </div>
@@ -190,8 +191,9 @@ export function InstallmentsView({
               <SheetHeader>
                 <SheetTitle>{selectedGroup.description}</SheetTitle>
                 <SheetDescription>
-                  Editar grupo de {selectedGroup.totalParts} parcelas. Por padrão as ações
-                  não tocam em parcelas pagas — use o switch quando precisar incluir.
+                  Editar grupo de {selectedGroup.totalParts}{' '}
+                  {selectedGroup.kind === 'recurring' ? 'meses' : 'parcelas'}. Por padrão as ações
+                  não tocam em linhas pagas — use o switch quando precisar incluir.
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-4 px-4 pb-4 space-y-6">
@@ -208,6 +210,7 @@ export function InstallmentsView({
                 <ParcelaList
                   rows={selectedGroup.rows}
                   todayKey={todayKey}
+                  kind={selectedGroup.kind}
                   onEdit={(t) => setEditingTx(t)}
                   onChange={refresh}
                 />
@@ -266,6 +269,7 @@ function InstallmentGroupCard({
   const remaining = group.total - group.paidAmount;
   const progress = (group.paidParts / group.totalParts) * 100;
   const isFinished = group.status === 'finished';
+  const isRecurring = group.kind === 'recurring';
 
   return (
     <Card
@@ -283,7 +287,14 @@ function InstallmentGroupCard({
         >
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <p className="eyebrow mb-0.5">{group.category}</p>
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="eyebrow">{group.category}</p>
+                {isRecurring && (
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/15 text-accent-foreground/70 not-italic">
+                    Recorrente
+                  </span>
+                )}
+              </div>
               <h4 className="font-medium text-base group-hover/header:underline decoration-dotted underline-offset-4">
                 {group.description}
               </h4>
@@ -359,14 +370,17 @@ function InstallmentGroupCard({
 function ParcelaList({
   rows,
   todayKey,
+  kind,
   onEdit,
   onChange,
 }: {
   rows: TransactionRow[];
   todayKey: string;
+  kind: 'installment' | 'recurring';
   onEdit: (t: TransactionRow) => void;
   onChange: () => void;
 }) {
+  const isRecurring = kind === 'recurring';
   const togglePaid = async (t: TransactionRow) => {
     const supabase = createClient();
     const { error } = await supabase
@@ -381,23 +395,29 @@ function ParcelaList({
   };
 
   const removeOne = async (t: TransactionRow) => {
-    if (!confirm(`Excluir a parcela ${t.installment_number}/${t.total_installments}?`)) return;
+    const label = isRecurring
+      ? `Excluir a ocorrência de ${t.billing_month?.slice(0, 7) ?? ''}?`
+      : `Excluir a parcela ${t.installment_number}/${t.total_installments}?`;
+    if (!confirm(label)) return;
     const supabase = createClient();
     const { error } = await supabase.from('transactions').delete().eq('id', t.id);
     if (error) toast.error(error.message);
     else {
-      toast.success('Parcela excluída');
+      toast.success(isRecurring ? 'Ocorrência excluída' : 'Parcela excluída');
       onChange();
     }
   };
 
   return (
     <section className="space-y-2">
-      <p className="eyebrow">Parcelas individuais</p>
+      <p className="eyebrow">{isRecurring ? 'Ocorrências mensais' : 'Parcelas individuais'}</p>
       <ul className="divide-y divide-rule/40 border border-rule/60 rounded-md bg-card">
-        {rows.map((t) => {
+        {rows.map((t, idx) => {
           const isCurrent = t.billing_month === todayKey;
           const isPast = (t.billing_month ?? '') < todayKey && !t.is_paid;
+          const numberLabel = isRecurring
+            ? `${idx + 1}/${rows.length}`
+            : `${t.installment_number}/${t.total_installments}`;
           return (
             <li
               key={t.id}
@@ -407,7 +427,7 @@ function ParcelaList({
               )}
             >
               <span className="font-mono text-xs text-muted-foreground w-12 shrink-0 tabular-nums">
-                {t.installment_number}/{t.total_installments}
+                {numberLabel}
               </span>
               <span className="font-display italic w-20 shrink-0">
                 {formatMonthBR(t.billing_month)}

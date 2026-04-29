@@ -53,9 +53,17 @@ async function applyPatches(patches: RowPatch[]): Promise<void> {
 }
 
 export function InstallmentGroupForm({ rows, cards, categories, onDone }: InstallmentGroupFormProps) {
-  const sorted = useMemo(
-    () => [...rows].sort((a, b) => (a.installment_number ?? 0) - (b.installment_number ?? 0)),
+  const isRecurring = useMemo(
+    () => rows.length > 0 && rows.every((r) => !r.is_installment && r.is_recurring),
     [rows],
+  );
+  const sorted = useMemo(
+    () =>
+      [...rows].sort((a, b) => {
+        if (!isRecurring) return (a.installment_number ?? 0) - (b.installment_number ?? 0);
+        return (a.billing_month ?? '').localeCompare(b.billing_month ?? '');
+      }),
+    [rows, isRecurring],
   );
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
@@ -63,6 +71,7 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
   const currentTotal = sorted.length;
   const currentPerAmount = first ? Math.abs(Number(first.amount)) : 0;
   const totalAmount = sorted.reduce((a, r) => a + Math.abs(Number(r.amount)), 0);
+  const partLabelPlural = isRecurring ? 'ocorrência(s)' : 'parcela(s)';
 
   // ── Campos compartilhados ──
   const [description, setDescription] = useState(baseDescription);
@@ -93,7 +102,7 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
         return;
       }
       await applyPatches(toUpdate);
-      toast.success(`${toUpdate.length} parcela(s) atualizada(s)`);
+      toast.success(`${toUpdate.length} ${partLabelPlural} atualizada(s)`);
       onDone?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
@@ -141,11 +150,11 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
 
   const onResize = async () => {
     if (newTotal === currentTotal) {
-      toast.info('Mesmo número de parcelas');
+      toast.info(isRecurring ? 'Mesmo número de meses' : 'Mesmo número de parcelas');
       return;
     }
     if (newTotal < 1) {
-      toast.error('Mínimo 1 parcela');
+      toast.error(isRecurring ? 'Mínimo 1 mês' : 'Mínimo 1 parcela');
       return;
     }
     setResizing(true);
@@ -166,8 +175,8 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
       await applyPatches(toUpdate);
       toast.success(
         toDelete.length > 0
-          ? `Removidas ${toDelete.length} parcela(s)`
-          : `Adicionadas ${toInsert.length} parcela(s)`,
+          ? `Removidas ${toDelete.length} ${partLabelPlural}`
+          : `Adicionadas ${toInsert.length} ${partLabelPlural}`,
       );
       onDone?.();
     } catch (e) {
@@ -199,7 +208,7 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
         return;
       }
       await applyPatches(toUpdate);
-      toast.success(`${toUpdate.length} parcela(s) atualizada(s)`);
+      toast.success(`${toUpdate.length} ${partLabelPlural} atualizada(s)`);
       onDone?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
@@ -218,13 +227,13 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
     let includePaid = true;
     if (paidCount > 0) {
       const choice = confirm(
-        `O grupo tem ${paidCount} parcela(s) já paga(s).\n\n` +
+        `O grupo tem ${paidCount} ${partLabelPlural} já paga(s).\n\n` +
           `OK = excluir TUDO (incluindo as pagas).\n` +
           `Cancelar = manter as pagas (excluir só as pendentes).`,
       );
       includePaid = choice;
     } else {
-      if (!confirm('Excluir este grupo de parcelas?')) return;
+      if (!confirm(isRecurring ? 'Excluir este lançamento recorrente?' : 'Excluir este grupo de parcelas?')) return;
     }
     setDeleting(true);
     try {
@@ -232,7 +241,7 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
       const ids = sorted.filter((r) => includePaid || !r.is_paid).map((r) => r.id);
       const { error } = await supabase.from('transactions').delete().in('id', ids);
       if (error) throw error;
-      toast.success(`${ids.length} parcela(s) excluída(s)`);
+      toast.success(`${ids.length} ${partLabelPlural} excluída(s)`);
       onDone?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir');
@@ -247,7 +256,8 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
     <div className="space-y-6">
       <div className="rounded-md bg-paper-dark/40 px-3 py-2 text-xs italic text-muted-foreground">
         Total atual: <span className="font-mono not-italic">{formatBRL(totalAmount)}</span>{' '}
-        em <span className="font-mono not-italic">{currentTotal}</span> parcelas ·{' '}
+        em <span className="font-mono not-italic">{currentTotal}</span>{' '}
+        {isRecurring ? 'meses' : 'parcelas'} ·{' '}
         {formatMonthBR(first.billing_month ?? '')} → {formatMonthBR(last.billing_month ?? '')}
       </div>
 
@@ -261,9 +271,11 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <p className="text-[11px] italic text-muted-foreground">
-            O sufixo (N/M) é mantido automaticamente em cada parcela.
-          </p>
+          {!isRecurring && (
+            <p className="text-[11px] italic text-muted-foreground">
+              O sufixo (N/M) é mantido automaticamente em cada parcela.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -353,16 +365,16 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
         </Button>
       </section>
 
-      {/* ── Total de parcelas ── */}
+      {/* ── Total de parcelas / meses ── */}
       <section className="space-y-3 rounded-md border border-rule/60 p-4">
-        <p className="eyebrow">Total de parcelas</p>
+        <p className="eyebrow">{isRecurring ? 'Quantidade de meses' : 'Total de parcelas'}</p>
         <p className="text-xs italic text-muted-foreground">
-          Aumentar adiciona ao final com mesmo valor. Reduzir remove as últimas
+          Aumentar adiciona ao final com mesmo valor. Reduzir remove as últimas{' '}
           (incluindo pagas).
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="grp-total">Novo total</Label>
+            <Label htmlFor="grp-total">{isRecurring ? 'Novo total de meses' : 'Novo total'}</Label>
             <Input
               id="grp-total"
               type="number"
@@ -389,9 +401,9 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
         </Button>
       </section>
 
-      {/* ── Valor por parcela ── */}
+      {/* ── Valor por parcela / mês ── */}
       <section className="space-y-3 rounded-md border border-rule/60 p-4">
-        <p className="eyebrow">Valor por parcela</p>
+        <p className="eyebrow">{isRecurring ? 'Valor mensal' : 'Valor por parcela'}</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="grp-amount">Novo valor (R$)</Label>

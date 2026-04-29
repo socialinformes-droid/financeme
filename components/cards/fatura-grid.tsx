@@ -30,75 +30,97 @@ export function FaturaGrid({
 
   const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-  // Cell key: `${cardId}-${billingMonth}` → soma dos amounts (apenas faturas principais)
-  const grid = useMemo(() => {
-    const map = new Map<string, { sum: number; ids: string[] }>();
+  // Dois maps:
+  //  - `lumpGrid`: faturas principais (`category='Cartão'` sem parênteses) — o "resto" não-itemizado.
+  //  - `itemizedGrid`: tudo que tem card_id E billing_month preenchidos e não é fatura principal —
+  //    parcelas, recorrentes e despesas avulsas que o user lançou item-por-item no cartão.
+  const { lumpGrid, itemizedGrid } = useMemo(() => {
+    const lump = new Map<string, { sum: number; ids: string[] }>();
+    const itemized = new Map<string, number>();
     for (const t of transactions) {
       if (!t.card_id || !t.billing_month) continue;
-      if (t.category !== 'Cartão') continue;
-      // só faturas principais — ignora "Cartão (Netflix)" etc
-      if (t.description.includes('(')) continue;
       const key = `${t.card_id}-${t.billing_month}`;
-      const cur = map.get(key) ?? { sum: 0, ids: [] };
-      cur.sum += Math.abs(Number(t.amount));
-      cur.ids.push(t.id);
-      map.set(key, cur);
+      const isLump = t.category === 'Cartão' && !t.description.includes('(');
+      if (isLump) {
+        const cur = lump.get(key) ?? { sum: 0, ids: [] };
+        cur.sum += Math.abs(Number(t.amount));
+        cur.ids.push(t.id);
+        lump.set(key, cur);
+      } else {
+        // Considera só expense — income recorrente (raro) não entra no total da fatura.
+        if (t.type !== 'expense') continue;
+        itemized.set(key, (itemized.get(key) ?? 0) + Math.abs(Number(t.amount)));
+      }
     }
-    return map;
+    return { lumpGrid: lump, itemizedGrid: itemized };
   }, [transactions]);
 
-  const cellValue = (cardId: string, month: string) => grid.get(`${cardId}-${month}`)?.sum ?? 0;
+  const cellLump = (cardId: string, month: string) => lumpGrid.get(`${cardId}-${month}`)?.sum ?? 0;
+  const cellItemized = (cardId: string, month: string) =>
+    itemizedGrid.get(`${cardId}-${month}`) ?? 0;
+  const cellTotal = (cardId: string, month: string) =>
+    cellLump(cardId, month) + cellItemized(cardId, month);
 
   const monthTotals = useMemo(
     () =>
       months.map((m) => {
         let total = 0;
-        for (const c of cards) total += cellValue(c.id, m);
+        for (const c of cards) total += cellTotal(c.id, m);
         return total;
       }),
-    [months, cards, grid],
+    [months, cards, lumpGrid, itemizedGrid],
   );
   const grandTotal = monthTotals.reduce((a, b) => a + b, 0);
 
   const cardYearTotal = (cardId: string) =>
-    months.reduce((a, m) => a + cellValue(cardId, m), 0);
+    months.reduce((a, m) => a + cellTotal(cardId, m), 0);
 
-  const saveCell = async (card: CardRow, billingMonth: string, newAmount: number) => {
+  const saveCell = async (card: CardRow, billingMonth: string, newTotal: number) => {
     const cellKey = `${card.id}-${billingMonth}`;
+    const itemized = cellItemized(card.id, billingMonth);
+    // O user digita o TOTAL da fatura; o app armazena só o "resto" (= total - itemizados),
+    // pra evitar dupla contagem com lançamentos individuais que já têm card_id.
+    const newLump = +(newTotal - itemized).toFixed(2);
+    if (newLump < 0) {
+      toast.error(
+        `Total não pode ser menor que ${formatBRL(itemized)} (já lançado individualmente neste mês)`,
+      );
+      return;
+    }
     setSavingCell(cellKey);
     try {
       const supabase = createClient();
-      const existing = grid.get(cellKey);
+      const existing = lumpGrid.get(cellKey);
 
-      if (newAmount === 0) {
-        // Remove fatura(s) da célula
+      if (newLump === 0) {
+        // Remove a linha agregada — o total da fatura é coberto 100% pelos itemizados.
         if (existing && existing.ids.length > 0) {
           const { error } = await supabase
             .from('transactions')
             .delete()
             .in('id', existing.ids);
           if (error) throw error;
-          toast.success('Fatura removida');
+          toast.success('Fatura coberta pelos itemizados');
         }
       } else if (existing && existing.ids.length > 0) {
         // Atualiza a primeira, remove duplicatas
         const [first, ...rest] = existing.ids;
         const { error: updErr } = await supabase
           .from('transactions')
-          .update({ amount: -newAmount })
+          .update({ amount: -newLump })
           .eq('id', first);
         if (updErr) throw updErr;
         if (rest.length > 0) {
           await supabase.from('transactions').delete().in('id', rest);
         }
-        toast.success(`${card.name} ${formatMonthBR(billingMonth)} → ${formatBRL(newAmount)}`);
+        toast.success(`${card.name} ${formatMonthBR(billingMonth)} → ${formatBRL(newTotal)}`);
       } else {
         // Insert novo
         type Insert = Database['public']['Tables']['transactions']['Insert'];
         const payload: Insert = {
           user_id: userId,
           description: `Cartão ${card.name}`,
-          amount: -newAmount,
+          amount: -newLump,
           type: 'expense',
           payment_method: 'debit',
           category: 'Cartão',
@@ -117,7 +139,7 @@ export function FaturaGrid({
         };
         const { error } = await supabase.from('transactions').insert(payload);
         if (error) throw error;
-        toast.success(`${card.name} ${formatMonthBR(billingMonth)} → ${formatBRL(newAmount)}`);
+        toast.success(`${card.name} ${formatMonthBR(billingMonth)} → ${formatBRL(newTotal)}`);
       }
       startTransition(() => router.refresh());
     } catch (e) {
@@ -178,12 +200,14 @@ export function FaturaGrid({
                   </span>
                 </td>
                 {months.map((m) => {
-                  const value = cellValue(card.id, m);
+                  const total = cellTotal(card.id, m);
+                  const itemized = cellItemized(card.id, m);
                   const cellKey = `${card.id}-${m}`;
                   return (
                     <FaturaCell
                       key={m}
-                      value={value}
+                      total={total}
+                      itemized={itemized}
                       isToday={m === todayKey}
                       isSaving={savingCell === cellKey}
                       disabled={pending}
@@ -224,20 +248,24 @@ export function FaturaGrid({
       </div>
 
       <p className="mt-2 text-[11px] text-muted-foreground italic px-1">
-        Clique numa célula para editar. Apague o valor (ou digite 0) para remover a fatura. Subscrições isoladas (Netflix, etc.) não aparecem aqui — só faturas principais.
+        Clique numa célula e digite o <strong>total</strong> da fatura — o app desconta automaticamente
+        o que já foi lançado item-por-item naquele cartão/mês (parcelas, recorrentes, assinaturas).
+        A linha de baixo (<span className="not-italic">↳ N item.</span>) mostra quanto já está itemizado.
       </p>
     </section>
   );
 }
 
 function FaturaCell({
-  value,
+  total,
+  itemized,
   isToday,
   isSaving,
   disabled,
   onSave,
 }: {
-  value: number;
+  total: number;
+  itemized: number;
   isToday: boolean;
   isSaving: boolean;
   disabled: boolean;
@@ -256,21 +284,21 @@ function FaturaCell({
 
   const startEdit = () => {
     if (disabled || isSaving) return;
-    setDraft(value > 0 ? String(value) : '');
+    setDraft(total > 0 ? String(total) : '');
     setEditing(true);
   };
 
   const commit = () => {
     const cleaned = draft.replace(/\./g, '').replace(',', '.').trim();
     const num = cleaned === '' ? 0 : Number(cleaned);
-    if (Number.isFinite(num) && num >= 0 && Math.abs(num - value) > 0.001) {
+    if (Number.isFinite(num) && num >= 0 && Math.abs(num - total) > 0.001) {
       onSave(Math.round(num * 100) / 100);
     }
     setEditing(false);
   };
 
   const cancel = () => {
-    setDraft(value > 0 ? String(value) : '');
+    setDraft(total > 0 ? String(total) : '');
     setEditing(false);
   };
 
@@ -295,6 +323,11 @@ function FaturaCell({
             if (e.key === 'Tab') commit();
           }}
           className="w-full text-right font-mono tabular-nums bg-card border border-foreground/30 rounded-sm px-1.5 py-1 text-xs outline-none focus:border-foreground/60"
+          title={
+            itemized > 0
+              ? `Digite o TOTAL da fatura. Já lançado individualmente: ${formatBRL(itemized)}`
+              : 'Total da fatura'
+          }
         />
       </td>
     );
@@ -315,15 +348,27 @@ function FaturaCell({
           startEdit();
         }
       }}
+      title={
+        itemized > 0
+          ? `Total ${formatBRL(total)} · ${formatBRL(itemized)} já lançado item-por-item`
+          : undefined
+      }
     >
-      <span
-        className={cn(
-          'tabular-nums hover:text-foreground transition-colors',
-          value === 0 ? 'text-muted-foreground/30' : 'text-money-down',
+      <div className="flex flex-col items-end leading-tight">
+        <span
+          className={cn(
+            'tabular-nums hover:text-foreground transition-colors',
+            total === 0 ? 'text-muted-foreground/30' : 'text-money-down',
+          )}
+        >
+          {total === 0 ? '·' : formatNum(total)}
+        </span>
+        {itemized > 0 && (
+          <span className="text-[9px] text-muted-foreground/70 italic tabular-nums">
+            ↳ {formatNum(itemized)} item.
+          </span>
         )}
-      >
-        {value === 0 ? '·' : formatNum(value)}
-      </span>
+      </div>
     </td>
   );
 }

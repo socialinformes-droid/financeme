@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { calculateBillingMonth } from '@/lib/domain/billing';
-import { createInstallmentTransactions } from '@/lib/domain/installments';
+import { createInstallmentTransactions, createRecurringTransactions } from '@/lib/domain/installments';
 import { firstDayOfMonth, formatBRL, toISODate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,7 @@ const schema = z.object({
   is_paid: z.boolean(),
   is_installment: z.boolean(),
   total_installments: z.number().int().min(1).max(60).optional(),
+  recurrence_months: z.number().int().min(1).max(120).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -90,12 +91,19 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
   const type = form.watch('type');
   const paymentMethod = form.watch('payment_method');
   const isInstallment = form.watch('is_installment');
+  const isRecurring = form.watch('is_recurring');
   const totalInstallments = form.watch('total_installments') ?? 0;
+  const recurrenceMonths = form.watch('recurrence_months') ?? 0;
   const amount = form.watch('amount');
 
   useEffect(() => {
     if (type === 'income') form.setValue('is_installment', false);
   }, [type, form]);
+
+  // Parcela e recorrente são mutuamente exclusivos: ligar um desliga o outro.
+  useEffect(() => {
+    if (isInstallment && isRecurring) form.setValue('is_recurring', false);
+  }, [isInstallment, isRecurring, form]);
 
   const onSubmit = async (values: FormValues) => {
     // Cross-field validation que o schema não cobre
@@ -105,6 +113,10 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
     }
     if (values.is_installment && (values.total_installments ?? 0) < 2) {
       form.setError('total_installments', { message: '>= 2 parcelas' });
+      return;
+    }
+    if (values.is_recurring && !isEdit && (values.recurrence_months ?? 0) < 2) {
+      form.setError('recurrence_months', { message: '>= 2 meses' });
       return;
     }
 
@@ -161,6 +173,23 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
         const { error } = await supabase.from('transactions').insert(rows);
         if (error) throw error;
         toast.success(`${rows.length} parcelas criadas`);
+      } else if (values.is_recurring && (values.recurrence_months ?? 0) > 1) {
+        const rows = createRecurringTransactions({
+          user_id: userId,
+          description: values.description,
+          amount: Math.abs(values.amount),
+          type: values.type,
+          months: values.recurrence_months!,
+          startDate: txDate,
+          category: values.category,
+          paymentMethod: values.payment_method,
+          cardId: values.card_id ?? null,
+          card,
+          notes: values.notes ?? null,
+        });
+        const { error } = await supabase.from('transactions').insert(rows);
+        if (error) throw error;
+        toast.success(`${rows.length} ocorrências criadas`);
       } else {
         const billingMonth = calculateBillingMonth(txDate, values.payment_method, card);
         const { error } = await supabase.from('transactions').insert({
@@ -325,16 +354,54 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Recorrente</p>
-            <p className="text-xs text-muted-foreground">Repete todo mês</p>
+            <p className="text-xs text-muted-foreground">Gera N lançamentos mensais com mesmo valor</p>
           </div>
           <Controller
             name="is_recurring"
             control={form.control}
             render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
+              <Switch
+                checked={field.value}
+                onCheckedChange={(v) => {
+                  field.onChange(v);
+                  if (v) form.setValue('is_installment', false);
+                }}
+              />
             )}
           />
         </div>
+
+        {isRecurring && !isEdit && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Por quantos meses?</Label>
+              <Input
+                type="number"
+                min={2}
+                max={120}
+                {...form.register('recurrence_months', { valueAsNumber: true })}
+              />
+              {form.formState.errors.recurrence_months && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.recurrence_months.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Por mês</Label>
+              <p className="font-mono text-sm pt-2">
+                {recurrenceMonths > 1 && amount > 0 ? formatBRL(amount) : '—'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isEdit && editing?.is_recurring && !editing?.is_installment && editing?.installment_group_id && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80">
+            Esta é uma ocorrência de um lançamento recorrente. A edição afeta só este mês —
+            outras ocorrências do grupo permanecem inalteradas.
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <div>
@@ -360,7 +427,13 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
               name="is_installment"
               control={form.control}
               render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={(v) => {
+                    field.onChange(v);
+                    if (v) form.setValue('is_recurring', false);
+                  }}
+                />
               )}
             />
           </div>

@@ -22,17 +22,32 @@ export default async function InstallmentsPage({
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year + 1}-01-01`;
 
-  const [{ data: transactions }, { data: cards }, { data: categories }] = await Promise.all([
+  const [
+    { data: installmentTxs },
+    { data: recurringTxs },
+    { data: cards },
+    { data: categories },
+  ] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
       .eq('is_installment', true)
       .order('billing_month', { ascending: true }),
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('is_recurring', true)
+      .eq('is_installment', false)
+      .not('installment_group_id', 'is', null)
+      .order('billing_month', { ascending: true }),
     supabase.from('cards').select('*').order('name'),
     supabase.from('categories').select('*').eq('is_active', true).order('name'),
   ]);
 
-  const allTxs = (transactions ?? []) as TransactionRow[];
+  const allTxs = [
+    ...((installmentTxs ?? []) as TransactionRow[]),
+    ...((recurringTxs ?? []) as TransactionRow[]),
+  ];
   const groupBounds = new Map<string, { start: string; end: string }>();
   for (const t of allTxs) {
     if (!t.installment_group_id || !t.billing_month) continue;
@@ -64,9 +79,11 @@ export default async function InstallmentsPage({
 
   const groups: Group[] = [...map.entries()]
     .map(([groupId, rows]): Group => {
-      const sorted = [...rows].sort(
-        (a, b) => (a.installment_number ?? 0) - (b.installment_number ?? 0),
-      );
+      const isRecurring = rows.every((r) => !r.is_installment && r.is_recurring);
+      const sorted = [...rows].sort((a, b) => {
+        if (!isRecurring) return (a.installment_number ?? 0) - (b.installment_number ?? 0);
+        return (a.billing_month ?? '').localeCompare(b.billing_month ?? '');
+      });
       const total = sorted.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
       const paid = sorted.filter((t) => t.is_paid);
       const startMonth = sorted[0]?.billing_month ?? '';
@@ -87,6 +104,7 @@ export default async function InstallmentsPage({
         endMonth,
         rows: sorted,
         status,
+        kind: isRecurring ? 'recurring' : 'installment',
       };
     })
     .sort((a, b) => {

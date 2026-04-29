@@ -1,4 +1,4 @@
-import { addMonthsToISO, firstDayOfMonth, toISODate } from '@/lib/format';
+import { addMonths, addMonthsToISO, firstDayOfMonth, toISODate } from '@/lib/format';
 import { calculateBillingMonth, type CardForBilling } from '@/lib/domain/billing';
 
 export type InstallmentInput = {
@@ -36,6 +36,44 @@ export type InstallmentRow = {
   installment_group_id: string;
   installment_end_date: string;
 };
+
+export type RecurrenceInput = {
+  user_id: string;
+  description: string;
+  amount: number;
+  type: 'expense' | 'income';
+  months: number;
+  startDate: Date;
+  category: string;
+  paymentMethod: 'credit' | 'debit' | 'pix' | 'cash';
+  cardId?: string | null;
+  card?: CardForBilling | null;
+  notes?: string | null;
+  groupId?: string;
+};
+
+export type RecurrenceRow = {
+  user_id: string;
+  description: string;
+  amount: number;
+  type: 'expense' | 'income';
+  payment_method: 'credit' | 'debit' | 'pix' | 'cash';
+  category: string;
+  notes: string | null;
+  expense_month: string;
+  billing_month: string;
+  card_id: string | null;
+  is_recurring: true;
+  is_paid: boolean;
+  transaction_date: string;
+  is_installment: false;
+  installment_number: null;
+  total_installments: null;
+  installment_group_id: string;
+  installment_end_date: string;
+};
+
+export type GeneratedRow = InstallmentRow | RecurrenceRow;
 
 /**
  * Gera N transações para uma compra parcelada.
@@ -85,6 +123,66 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
       is_installment: true,
       installment_number: i + 1,
       total_installments: input.installments,
+      installment_group_id: groupId,
+      installment_end_date: installmentEndDate,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Gera N transações para um lançamento recorrente (mesmo valor todo mês).
+ *
+ * Diferente de parcelas:
+ * - `amount` é o valor cheio em cada linha (não divide).
+ * - Descrição não recebe sufixo (N/M).
+ * - `is_installment=false`, `is_recurring=true`.
+ * - `installment_number` e `total_installments` ficam `null` (não é parcela).
+ *
+ * Igual a parcelas:
+ * - `expense_month` e `billing_month` deslizam mês a mês.
+ * - `installment_group_id` é o mesmo em todas as linhas (permite editar/excluir o grupo).
+ * - `installment_end_date` aponta para o último mês de cobrança do grupo.
+ */
+export function createRecurringTransactions(input: RecurrenceInput): RecurrenceRow[] {
+  if (input.months < 1) throw new Error('months deve ser >= 1');
+  if (input.amount <= 0) throw new Error('amount deve ser > 0');
+
+  const groupId = input.groupId ?? cryptoUUID();
+  const startBilling = calculateBillingMonth(
+    input.startDate,
+    input.paymentMethod,
+    input.card ?? null,
+  );
+  const installmentEndDate = addMonthsToISO(startBilling, input.months - 1);
+  const sign = input.type === 'income' ? 1 : -1;
+  const signed = +(input.amount * sign).toFixed(2);
+
+  const rows: RecurrenceRow[] = [];
+  for (let i = 0; i < input.months; i++) {
+    // expense_month é o mês do consumo (desliza com a data da transação).
+    // billing_month é o mês da fatura — pra débito/pix/cash coincide; pra crédito
+    // é deslocado pelo fechamento do cartão (offset constante a cada mês).
+    const occurrenceDate = addMonths(input.startDate, i);
+    const expenseMonth = toISODate(firstDayOfMonth(occurrenceDate));
+    const billingMonth = addMonthsToISO(startBilling, i);
+    rows.push({
+      user_id: input.user_id,
+      description: input.description,
+      amount: signed,
+      type: input.type,
+      payment_method: input.paymentMethod,
+      category: input.category,
+      notes: input.notes ?? null,
+      expense_month: expenseMonth,
+      billing_month: billingMonth,
+      card_id: input.cardId ?? null,
+      is_recurring: true,
+      is_paid: false,
+      transaction_date: toISODate(occurrenceDate),
+      is_installment: false,
+      installment_number: null,
+      total_installments: null,
       installment_group_id: groupId,
       installment_end_date: installmentEndDate,
     });
@@ -143,9 +241,17 @@ export function withInstallmentSuffix(base: string, n: number, total: number): s
 }
 
 function sortByNumber(rows: GroupRow[]): GroupRow[] {
-  return [...rows].sort(
-    (a, b) => (a.installment_number ?? 0) - (b.installment_number ?? 0),
-  );
+  return [...rows].sort((a, b) => {
+    // Parcelas têm installment_number; recorrentes não — caem no fallback de billing_month.
+    const an = a.installment_number ?? null;
+    const bn = b.installment_number ?? null;
+    if (an !== null && bn !== null) return an - bn;
+    return (a.billing_month ?? '').localeCompare(b.billing_month ?? '');
+  });
+}
+
+function isRecurringGroup(rows: GroupRow[]): boolean {
+  return rows.length > 0 && rows.every((r) => !r.is_installment && r.is_recurring);
 }
 
 /**
@@ -159,7 +265,7 @@ function sortByNumber(rows: GroupRow[]): GroupRow[] {
 export function groupResize(opts: {
   rows: GroupRow[];
   newTotal: number;
-}): { toDelete: string[]; toInsert: InstallmentRow[]; toUpdate: RowPatch[] } {
+}): { toDelete: string[]; toInsert: GeneratedRow[]; toUpdate: RowPatch[] } {
   const sorted = sortByNumber(opts.rows);
   const currentTotal = sorted.length;
   if (opts.newTotal === currentTotal) return { toDelete: [], toInsert: [], toUpdate: [] };
@@ -168,6 +274,7 @@ export function groupResize(opts: {
     throw new Error('grupo vazio ou sem billing_month');
   }
 
+  const recurring = isRecurringGroup(sorted);
   const baseDesc = stripInstallmentSuffix(sorted[0].description);
   const newEndBilling = addMonthsToISO(sorted[0].billing_month, opts.newTotal - 1);
 
@@ -175,50 +282,80 @@ export function groupResize(opts: {
     const toDelete = sorted.slice(opts.newTotal).map((r) => r.id);
     const toUpdate: RowPatch[] = sorted.slice(0, opts.newTotal).map((r) => ({
       id: r.id,
-      patch: {
-        total_installments: opts.newTotal,
-        installment_end_date: newEndBilling,
-        description: withInstallmentSuffix(baseDesc, r.installment_number ?? 0, opts.newTotal),
-      },
+      patch: recurring
+        ? { installment_end_date: newEndBilling }
+        : {
+            total_installments: opts.newTotal,
+            installment_end_date: newEndBilling,
+            description: withInstallmentSuffix(baseDesc, r.installment_number ?? 0, opts.newTotal),
+          },
     }));
     return { toDelete, toInsert: [], toUpdate };
   }
 
   const sample = sorted[0];
   const lastBilling = sorted[sorted.length - 1].billing_month;
-  if (!lastBilling) throw new Error('última parcela sem billing_month');
+  if (!lastBilling) throw new Error('última linha sem billing_month');
   const perAmount = Math.abs(Number(sample.amount));
+  const groupId = sample.installment_group_id ?? '';
 
-  const toInsert: InstallmentRow[] = [];
+  const toInsert: GeneratedRow[] = [];
   for (let i = currentTotal; i < opts.newTotal; i++) {
-    toInsert.push({
-      user_id: sample.user_id,
-      description: withInstallmentSuffix(baseDesc, i + 1, opts.newTotal),
-      amount: -perAmount,
-      type: 'expense',
-      payment_method: sample.payment_method,
-      category: sample.category,
-      notes: sample.notes,
-      expense_month: sample.expense_month ?? toISODate(firstDayOfMonth(new Date(sample.transaction_date))),
-      billing_month: addMonthsToISO(lastBilling, i + 1 - currentTotal),
-      card_id: sample.card_id,
-      is_recurring: sample.is_recurring,
-      is_paid: false,
-      transaction_date: sample.transaction_date,
-      is_installment: true,
-      installment_number: i + 1,
-      total_installments: opts.newTotal,
-      installment_group_id: sample.installment_group_id ?? '',
-      installment_end_date: newEndBilling,
-    });
+    const billingMonth = addMonthsToISO(lastBilling, i + 1 - currentTotal);
+    if (recurring) {
+      toInsert.push({
+        user_id: sample.user_id,
+        description: baseDesc,
+        amount: sample.type === 'income' ? perAmount : -perAmount,
+        type: sample.type,
+        payment_method: sample.payment_method,
+        category: sample.category,
+        notes: sample.notes,
+        expense_month: billingMonth,
+        billing_month: billingMonth,
+        card_id: sample.card_id,
+        is_recurring: true,
+        is_paid: false,
+        transaction_date: sample.transaction_date,
+        is_installment: false,
+        installment_number: null,
+        total_installments: null,
+        installment_group_id: groupId,
+        installment_end_date: newEndBilling,
+      });
+    } else {
+      toInsert.push({
+        user_id: sample.user_id,
+        description: withInstallmentSuffix(baseDesc, i + 1, opts.newTotal),
+        amount: -perAmount,
+        type: 'expense',
+        payment_method: sample.payment_method,
+        category: sample.category,
+        notes: sample.notes,
+        expense_month:
+          sample.expense_month ?? toISODate(firstDayOfMonth(new Date(sample.transaction_date))),
+        billing_month: billingMonth,
+        card_id: sample.card_id,
+        is_recurring: sample.is_recurring,
+        is_paid: false,
+        transaction_date: sample.transaction_date,
+        is_installment: true,
+        installment_number: i + 1,
+        total_installments: opts.newTotal,
+        installment_group_id: groupId,
+        installment_end_date: newEndBilling,
+      });
+    }
   }
   const toUpdate: RowPatch[] = sorted.map((r) => ({
     id: r.id,
-    patch: {
-      total_installments: opts.newTotal,
-      installment_end_date: newEndBilling,
-      description: withInstallmentSuffix(baseDesc, r.installment_number ?? 0, opts.newTotal),
-    },
+    patch: recurring
+      ? { installment_end_date: newEndBilling }
+      : {
+          total_installments: opts.newTotal,
+          installment_end_date: newEndBilling,
+          description: withInstallmentSuffix(baseDesc, r.installment_number ?? 0, opts.newTotal),
+        },
   }));
   return { toDelete: [], toInsert, toUpdate };
 }
@@ -264,16 +401,20 @@ export function groupReschedule(opts: {
   return { toUpdate };
 }
 
-/** Atualiza o valor por parcela (filtra por pagas conforme includePaid). */
+/** Atualiza o valor por linha (filtra por pagas conforme includePaid). Preserva o sinal pelo type da linha. */
 export function groupBulkValue(opts: {
   rows: GroupRow[];
   newAmount: number;
   includePaid: boolean;
 }): { toUpdate: RowPatch[] } {
   if (opts.newAmount <= 0) throw new Error('newAmount deve ser > 0');
+  const abs = Math.abs(opts.newAmount);
   const toUpdate = opts.rows
     .filter((r) => opts.includePaid || !r.is_paid)
-    .map((r) => ({ id: r.id, patch: { amount: -Math.abs(opts.newAmount) } as Partial<GroupRow> }));
+    .map((r) => {
+      const signed = r.type === 'income' ? abs : -abs;
+      return { id: r.id, patch: { amount: signed } as Partial<GroupRow> };
+    });
   return { toUpdate };
 }
 
@@ -298,16 +439,19 @@ export function groupBulkFields(opts: {
     opts.fields.card_id !== undefined;
   if (!hasAny) return { toUpdate: [] };
 
+  const recurring = isRecurringGroup(opts.rows);
   const toUpdate: RowPatch[] = opts.rows
     .filter((r) => opts.includePaid || !r.is_paid)
     .map((r) => {
       const patch: Partial<GroupRow> = {};
       if (opts.fields.description !== undefined) {
-        patch.description = withInstallmentSuffix(
-          opts.fields.description,
-          r.installment_number ?? 0,
-          r.total_installments ?? 0,
-        );
+        patch.description = recurring
+          ? opts.fields.description
+          : withInstallmentSuffix(
+              opts.fields.description,
+              r.installment_number ?? 0,
+              r.total_installments ?? 0,
+            );
       }
       if (opts.fields.category !== undefined) patch.category = opts.fields.category;
       if (opts.fields.payment_method !== undefined) patch.payment_method = opts.fields.payment_method;
