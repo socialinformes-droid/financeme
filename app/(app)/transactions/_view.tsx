@@ -2,7 +2,18 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Trash2, CheckCircle2, Pencil, Layers } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Trash2,
+  CheckCircle2,
+  Pencil,
+  Layers,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  ChevronDown,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
@@ -11,12 +22,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -39,23 +51,41 @@ import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types'
 
 type SelectOption = { value: string; label: string };
 
-function LabeledSelect({
+function MultiSelect({
   label,
-  value,
-  onValueChange,
+  values,
+  onChange,
   options,
 }: {
   label: string;
-  value: string;
-  onValueChange: (v: string) => void;
+  values: string[];
+  onChange: (v: string[]) => void;
   options: SelectOption[];
 }) {
-  const current = options.find((o) => o.value === value) ?? options[0];
-  // Primeira opção é tratada como "estado neutro" (sem filtro ativo)
-  const isNeutral = current.value === options[0].value;
+  const isNeutral = values.length === 0 || values.length === options.length;
+  const display =
+    values.length === 0 || values.length === options.length
+      ? null
+      : values.length === 1
+        ? (options.find((o) => o.value === values[0])?.label ?? '')
+        : `${values.length} selecionados`;
+
+  const toggle = (v: string) =>
+    onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+
+  const selectAll = () => onChange(options.map((o) => o.value));
+  const clear = () => onChange([]);
+
   return (
-    <Select value={value} onValueChange={(v) => onValueChange(v ?? options[0].value)}>
-      <SelectTrigger className="w-full">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50"
+          />
+        }
+      >
         {isNeutral ? (
           <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider">
             {label}
@@ -65,35 +95,113 @@ function LabeledSelect({
             <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider shrink-0">
               {label}
             </span>
-            <span className="text-foreground/85 truncate">{current.label}</span>
+            <span className="text-foreground/85 truncate">{display}</span>
           </span>
         )}
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((o, i) => (
-          <SelectItem key={o.value} value={o.value}>
-            {i === 0 ? (
-              <span className="italic text-muted-foreground">{o.label}</span>
-            ) : (
-              o.label
+        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-h-72 min-w-44">
+        <DropdownMenuLabel className="flex items-center justify-between gap-2">
+          <span className="uppercase tracking-wider text-[10px]">{label}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={selectAll}
+              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              todos
+            </button>
+            {values.length > 0 && (
+              <button
+                type="button"
+                onClick={clear}
+                className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              >
+                limpar
+              </button>
             )}
-          </SelectItem>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {options.map((o) => (
+          <DropdownMenuCheckboxItem
+            key={o.value}
+            checked={values.includes(o.value)}
+            onCheckedChange={() => toggle(o.value)}
+          >
+            {o.label}
+          </DropdownMenuCheckboxItem>
         ))}
-      </SelectContent>
-    </Select>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
+type TxType = 'income' | 'expense';
+type PaymentMethod = 'credit' | 'debit' | 'pix' | 'cash';
+type StatusFilter = 'paid' | 'pending';
+
 type Filters = {
   q: string;
-  type: 'all' | 'income' | 'expense';
-  method: 'all' | 'credit' | 'debit' | 'pix' | 'cash';
-  status: 'all' | 'paid' | 'pending';
-  category: string;
-  expenseMonth: string;
+  type: TxType[];
+  method: PaymentMethod[];
+  status: StatusFilter[];
+  category: string[];
+  expenseMonth: string[];
 };
 
-const ALL = '__all';
+type SortKey =
+  | 'description'
+  | 'category'
+  | 'payment_method'
+  | 'transaction_date'
+  | 'expense_month'
+  | 'billing_month'
+  | 'amount';
+type SortDir = 'asc' | 'desc';
+type SortState = { key: SortKey; dir: SortDir };
+
+const NUMERIC_KEYS: SortKey[] = ['amount'];
+
+function SortHead({
+  label,
+  sortKey,
+  sort,
+  onToggle,
+  align = 'left',
+  className = '',
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onToggle: (k: SortKey) => void;
+  align?: 'left' | 'right';
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  const isNumeric = NUMERIC_KEYS.includes(sortKey) || sortKey.endsWith('_date') || sortKey.endsWith('_month');
+  const ascLabel = isNumeric ? 'menor → maior' : 'A → Z';
+  const descLabel = isNumeric ? 'maior → menor' : 'Z → A';
+  const Icon = !active ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown;
+  const title = active
+    ? `Ordenado: ${sort.dir === 'asc' ? ascLabel : descLabel} — clique para inverter`
+    : `Ordenar (${ascLabel} / ${descLabel})`;
+  return (
+    <TableHead className={`${align === 'right' ? 'text-right' : ''} ${className}`}>
+      <button
+        type="button"
+        onClick={() => onToggle(sortKey)}
+        title={title}
+        className={`inline-flex items-center gap-1 select-none hover:text-foreground transition ${
+          active ? 'text-foreground' : 'text-muted-foreground'
+        } ${align === 'right' ? 'flex-row-reverse' : ''}`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3 opacity-70" />
+      </button>
+    </TableHead>
+  );
+}
 
 export function TransactionsView({
   userId,
@@ -118,12 +226,15 @@ export function TransactionsView({
   const [bulkOpen, setBulkOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
-    type: 'all',
-    method: 'all',
-    status: 'all',
-    category: ALL,
-    expenseMonth: ALL,
+    type: [],
+    method: [],
+    status: [],
+    category: [],
+    expenseMonth: [],
   });
+  const [sort, setSort] = useState<SortState>({ key: 'transaction_date', dir: 'desc' });
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
 
   const months = useMemo(() => {
     const set = new Set<string>();
@@ -134,12 +245,16 @@ export function TransactionsView({
   const filtered = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     return initialTransactions.filter((t) => {
-      if (filters.type !== 'all' && t.type !== filters.type) return false;
-      if (filters.method !== 'all' && t.payment_method !== filters.method) return false;
-      if (filters.status === 'paid' && !t.is_paid) return false;
-      if (filters.status === 'pending' && t.is_paid) return false;
-      if (filters.category !== ALL && t.category !== filters.category) return false;
-      if (filters.expenseMonth !== ALL && t.expense_month !== filters.expenseMonth) return false;
+      if (filters.type.length && !filters.type.includes(t.type as TxType)) return false;
+      if (filters.method.length && !filters.method.includes(t.payment_method as PaymentMethod))
+        return false;
+      if (filters.status.length) {
+        const s: StatusFilter = t.is_paid ? 'paid' : 'pending';
+        if (!filters.status.includes(s)) return false;
+      }
+      if (filters.category.length && !filters.category.includes(t.category)) return false;
+      if (filters.expenseMonth.length && !filters.expenseMonth.includes(t.expense_month ?? ''))
+        return false;
       if (q && !t.description.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -154,6 +269,21 @@ export function TransactionsView({
     }
     return { income, expense, balance: income - expense, count: filtered.length };
   }, [filtered]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const { key, dir } = sort;
+    const mult = dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      if (key === 'amount') {
+        return (Number(a.amount) - Number(b.amount)) * mult;
+      }
+      const av = (a[key] ?? '') as string;
+      const bv = (b[key] ?? '') as string;
+      return av.localeCompare(bv, 'pt-BR', { numeric: true, sensitivity: 'base' }) * mult;
+    });
+    return arr;
+  }, [filtered, sort]);
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -275,45 +405,37 @@ export function TransactionsView({
             onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
           />
         </div>
-        <LabeledSelect
+        <MultiSelect
           label="Tipo"
-          value={filters.type}
-          onValueChange={(v) => setFilters((f) => ({ ...f, type: (v as Filters['type']) ?? 'all' }))}
+          values={filters.type}
+          onChange={(v) => setFilters((f) => ({ ...f, type: v as TxType[] }))}
           options={[
-            { value: 'all', label: 'todos' },
             { value: 'income', label: 'Entradas' },
             { value: 'expense', label: 'Saídas' },
           ]}
         />
-        <LabeledSelect
+        <MultiSelect
           label="Método"
-          value={filters.method}
-          onValueChange={(v) => setFilters((f) => ({ ...f, method: (v as Filters['method']) ?? 'all' }))}
+          values={filters.method}
+          onChange={(v) => setFilters((f) => ({ ...f, method: v as PaymentMethod[] }))}
           options={[
-            { value: 'all', label: 'todos' },
             { value: 'credit', label: 'Crédito' },
             { value: 'debit', label: 'Débito' },
             { value: 'pix', label: 'PIX' },
             { value: 'cash', label: 'Dinheiro' },
           ]}
         />
-        <LabeledSelect
+        <MultiSelect
           label="Categoria"
-          value={filters.category}
-          onValueChange={(v) => setFilters((f) => ({ ...f, category: v ?? ALL }))}
-          options={[
-            { value: ALL, label: 'todas' },
-            ...categoryNames.map((c) => ({ value: c, label: c })),
-          ]}
+          values={filters.category}
+          onChange={(v) => setFilters((f) => ({ ...f, category: v }))}
+          options={categoryNames.map((c) => ({ value: c, label: c }))}
         />
-        <LabeledSelect
+        <MultiSelect
           label="Mês"
-          value={filters.expenseMonth}
-          onValueChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v ?? ALL }))}
-          options={[
-            { value: ALL, label: 'todos' },
-            ...months.map((m) => ({ value: m, label: formatMonthBR(m) })),
-          ]}
+          values={filters.expenseMonth}
+          onChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v }))}
+          options={months.map((m) => ({ value: m, label: formatMonthBR(m) }))}
         />
       </div>
 
@@ -322,26 +444,26 @@ export function TransactionsView({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Método</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Mês gasto</TableHead>
-              <TableHead>Mês fatura</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
+              <SortHead label="Descrição" sortKey="description" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Categoria" sortKey="category" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Método" sortKey="payment_method" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Data" sortKey="transaction_date" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Mês gasto" sortKey="expense_month" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Mês fatura" sortKey="billing_month" sort={sort} onToggle={toggleSort} />
+              <SortHead label="Valor" sortKey="amount" sort={sort} onToggle={toggleSort} align="right" />
               <TableHead>Status</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
                   Nada por aqui
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((t) => (
+              sorted.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium max-w-[260px] truncate" title={t.description}>
                     {t.description}
