@@ -32,6 +32,8 @@ export type InstallmentGroupFormProps = {
   rows: GroupRow[];
   cards: CardRow[];
   categories: ReadonlyArray<{ name: string }>;
+  /** Id da linha que disparou a abertura do form. Habilita o atalho "Encerrar nesta ocorrência". */
+  contextRowId?: string;
   onDone?: () => void;
 };
 
@@ -52,7 +54,7 @@ async function applyPatches(patches: RowPatch[]): Promise<void> {
   if (firstError) throw firstError;
 }
 
-export function InstallmentGroupForm({ rows, cards, categories, onDone }: InstallmentGroupFormProps) {
+export function InstallmentGroupForm({ rows, cards, categories, contextRowId, onDone }: InstallmentGroupFormProps) {
   const isRecurring = useMemo(
     () => rows.length > 0 && rows.every((r) => !r.is_installment && r.is_recurring),
     [rows],
@@ -148,12 +150,19 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
     ? addMonthsToISO(first.billing_month, Math.max(0, newTotal - 1))
     : '';
 
-  const onResize = async () => {
-    if (newTotal === currentTotal) {
+  const contextIndex = useMemo(() => {
+    if (!contextRowId) return -1;
+    return sorted.findIndex((r) => r.id === contextRowId);
+  }, [contextRowId, sorted]);
+  const contextRow = contextIndex >= 0 ? sorted[contextIndex] : null;
+  const canEndHere = contextRow !== null && contextIndex < currentTotal - 1;
+
+  const runResize = async (target: number) => {
+    if (target === currentTotal) {
       toast.info(isRecurring ? 'Mesmo número de meses' : 'Mesmo número de parcelas');
       return;
     }
-    if (newTotal < 1) {
+    if (target < 1) {
       toast.error(isRecurring ? 'Mínimo 1 mês' : 'Mínimo 1 parcela');
       return;
     }
@@ -161,7 +170,7 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
     try {
       const { toDelete, toInsert, toUpdate } = groupResize({
         rows: sorted,
-        newTotal,
+        newTotal: target,
       });
       const supabase = createClient();
       if (toDelete.length > 0) {
@@ -184,6 +193,23 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
     } finally {
       setResizing(false);
     }
+  };
+
+  const onResize = () => runResize(newTotal);
+
+  const onEndHere = () => {
+    if (!contextRow || contextIndex < 0) return;
+    const target = contextIndex + 1;
+    const removed = currentTotal - target;
+    const monthLabel = formatMonthBR(contextRow.billing_month ?? '');
+    if (
+      !confirm(
+        `Encerrar em ${monthLabel}? Remove ${removed} ${partLabelPlural} futuras (esta ocorrência permanece).`,
+      )
+    ) {
+      return;
+    }
+    runResize(target);
   };
 
   // ── Valor por parcela ──
@@ -399,6 +425,17 @@ export function InstallmentGroupForm({ rows, cards, categories, onDone }: Instal
         >
           {resizing ? 'Aplicando...' : 'Aplicar'}
         </Button>
+        {canEndHere && contextRow && (
+          <Button
+            onClick={onEndHere}
+            disabled={resizing}
+            variant="outline"
+            className="w-full border-destructive/40 text-destructive hover:bg-destructive/5"
+          >
+            Encerrar em {formatMonthBR(contextRow.billing_month ?? '')} (–
+            {currentTotal - (contextIndex + 1)} {partLabelPlural})
+          </Button>
+        )}
       </section>
 
       {/* ── Valor por parcela / mês ── */}

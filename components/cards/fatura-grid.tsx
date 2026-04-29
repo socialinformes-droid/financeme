@@ -2,11 +2,14 @@
 
 import { useMemo, useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Check, Circle, CircleDot } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { formatBRL, formatMonthBR, addMonthsToISO } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { CardRow, TransactionRow, Database } from '@/lib/supabase/types';
+
+type PaidStatus = 'all' | 'partial' | 'none' | 'empty';
 
 export function FaturaGrid({
   userId,
@@ -30,13 +33,15 @@ export function FaturaGrid({
 
   const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-  // Dois maps:
+  // Três maps:
   //  - `lumpGrid`: faturas principais (`category='Cartão'` sem parênteses) — o "resto" não-itemizado.
-  //  - `itemizedGrid`: tudo que tem card_id E billing_month preenchidos e não é fatura principal —
-  //    parcelas, recorrentes e despesas avulsas que o user lançou item-por-item no cartão.
-  const { lumpGrid, itemizedGrid } = useMemo(() => {
+  //  - `itemizedGrid`: tudo que tem card_id E billing_month preenchidos e não é fatura principal.
+  //  - `paidGrid`: ids de tudo que conta na fatura (lump + itemized expense) + contagem de pagas,
+  //    pra propagar status de pagamento em cascata por cartão+mês.
+  const { lumpGrid, itemizedGrid, paidGrid } = useMemo(() => {
     const lump = new Map<string, { sum: number; ids: string[] }>();
     const itemized = new Map<string, number>();
+    const paid = new Map<string, { ids: string[]; paidCount: number }>();
     for (const t of transactions) {
       if (!t.card_id || !t.billing_month) continue;
       const key = `${t.card_id}-${t.billing_month}`;
@@ -47,12 +52,16 @@ export function FaturaGrid({
         cur.ids.push(t.id);
         lump.set(key, cur);
       } else {
-        // Considera só expense — income recorrente (raro) não entra no total da fatura.
         if (t.type !== 'expense') continue;
         itemized.set(key, (itemized.get(key) ?? 0) + Math.abs(Number(t.amount)));
       }
+      if (!isLump && t.type !== 'expense') continue;
+      const p = paid.get(key) ?? { ids: [], paidCount: 0 };
+      p.ids.push(t.id);
+      if (t.is_paid) p.paidCount += 1;
+      paid.set(key, p);
     }
-    return { lumpGrid: lump, itemizedGrid: itemized };
+    return { lumpGrid: lump, itemizedGrid: itemized, paidGrid: paid };
   }, [transactions]);
 
   const cellLump = (cardId: string, month: string) => lumpGrid.get(`${cardId}-${month}`)?.sum ?? 0;
@@ -60,6 +69,13 @@ export function FaturaGrid({
     itemizedGrid.get(`${cardId}-${month}`) ?? 0;
   const cellTotal = (cardId: string, month: string) =>
     cellLump(cardId, month) + cellItemized(cardId, month);
+  const cellPaidStatus = (cardId: string, month: string): PaidStatus => {
+    const p = paidGrid.get(`${cardId}-${month}`);
+    if (!p || p.ids.length === 0) return 'empty';
+    if (p.paidCount === p.ids.length) return 'all';
+    if (p.paidCount === 0) return 'none';
+    return 'partial';
+  };
 
   const monthTotals = useMemo(
     () =>
@@ -74,6 +90,27 @@ export function FaturaGrid({
 
   const cardYearTotal = (cardId: string) =>
     months.reduce((a, m) => a + cellTotal(cardId, m), 0);
+
+  const togglePaidCell = async (cardId: string, billingMonth: string, status: PaidStatus) => {
+    const p = paidGrid.get(`${cardId}-${billingMonth}`);
+    if (!p || p.ids.length === 0) return;
+    const newPaid = status !== 'all'; // mark all paid; if already all paid, unmark
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('transactions')
+      .update({ is_paid: newPaid })
+      .in('id', p.ids);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      newPaid
+        ? `Fatura paga · ${p.ids.length} ${p.ids.length === 1 ? 'lançamento' : 'lançamentos'}`
+        : `Fatura marcada como pendente`,
+    );
+    startTransition(() => router.refresh());
+  };
 
   const saveCell = async (card: CardRow, billingMonth: string, newTotal: number) => {
     const cellKey = `${card.id}-${billingMonth}`;
@@ -202,16 +239,19 @@ export function FaturaGrid({
                 {months.map((m) => {
                   const total = cellTotal(card.id, m);
                   const itemized = cellItemized(card.id, m);
+                  const paidStatus = cellPaidStatus(card.id, m);
                   const cellKey = `${card.id}-${m}`;
                   return (
                     <FaturaCell
                       key={m}
                       total={total}
                       itemized={itemized}
+                      paidStatus={paidStatus}
                       isToday={m === todayKey}
                       isSaving={savingCell === cellKey}
                       disabled={pending}
                       onSave={(v) => saveCell(card, m, v)}
+                      onTogglePaid={() => togglePaidCell(card.id, m, paidStatus)}
                     />
                   );
                 })}
@@ -259,17 +299,21 @@ export function FaturaGrid({
 function FaturaCell({
   total,
   itemized,
+  paidStatus,
   isToday,
   isSaving,
   disabled,
   onSave,
+  onTogglePaid,
 }: {
   total: number;
   itemized: number;
+  paidStatus: PaidStatus;
   isToday: boolean;
   isSaving: boolean;
   disabled: boolean;
   onSave: (v: number) => void;
+  onTogglePaid: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -333,6 +377,14 @@ function FaturaCell({
     );
   }
 
+  const showPaidToggle = paidStatus !== 'empty';
+  const paidTitle =
+    paidStatus === 'all'
+      ? 'Fatura paga — clique pra desmarcar tudo'
+      : paidStatus === 'partial'
+        ? 'Pago parcial — clique pra marcar tudo como pago'
+        : 'Pendente — clique pra marcar tudo como pago';
+
   return (
     <td
       className={cn(
@@ -354,20 +406,49 @@ function FaturaCell({
           : undefined
       }
     >
-      <div className="flex flex-col items-end leading-tight">
-        <span
-          className={cn(
-            'tabular-nums hover:text-foreground transition-colors',
-            total === 0 ? 'text-muted-foreground/30' : 'text-money-down',
-          )}
-        >
-          {total === 0 ? '·' : formatNum(total)}
-        </span>
-        {itemized > 0 && (
-          <span className="text-[9px] text-muted-foreground/70 italic tabular-nums">
-            ↳ {formatNum(itemized)} item.
-          </span>
+      <div className="flex items-center justify-end gap-1.5">
+        {showPaidToggle && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePaid();
+            }}
+            disabled={disabled || isSaving}
+            title={paidTitle}
+            className={cn(
+              'shrink-0 rounded-full p-0.5 transition-colors',
+              paidStatus === 'all'
+                ? 'text-money-up hover:text-money-up/70'
+                : paidStatus === 'partial'
+                  ? 'text-accent-warm hover:text-foreground'
+                  : 'text-muted-foreground/40 hover:text-foreground',
+            )}
+          >
+            {paidStatus === 'all' ? (
+              <Check className="h-3 w-3" />
+            ) : paidStatus === 'partial' ? (
+              <CircleDot className="h-3 w-3" />
+            ) : (
+              <Circle className="h-3 w-3" />
+            )}
+          </button>
         )}
+        <div className="flex flex-col items-end leading-tight">
+          <span
+            className={cn(
+              'tabular-nums hover:text-foreground transition-colors',
+              total === 0 ? 'text-muted-foreground/30' : 'text-money-down',
+            )}
+          >
+            {total === 0 ? '·' : formatNum(total)}
+          </span>
+          {itemized > 0 && (
+            <span className="text-[9px] text-muted-foreground/70 italic tabular-nums">
+              ↳ {formatNum(itemized)} item.
+            </span>
+          )}
+        </div>
       </div>
     </td>
   );

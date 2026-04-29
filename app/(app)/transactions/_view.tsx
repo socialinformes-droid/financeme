@@ -47,6 +47,8 @@ import {
 } from '@/components/ui/sheet';
 import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
+import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
+import type { GroupRow } from '@/lib/domain/installments';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
 type SelectOption = { value: string; label: string };
@@ -218,6 +220,9 @@ export function TransactionsView({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [groupRows, setGroupRows] = useState<GroupRow[] | null>(null);
+  const [groupContextRowId, setGroupContextRowId] = useState<string | null>(null);
+  const [loadingGroup, setLoadingGroup] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     type: [],
@@ -291,6 +296,27 @@ export function TransactionsView({
     else {
       toast.success(t.is_paid ? 'Marcada como pendente' : 'Marcada como paga');
       refresh();
+    }
+  };
+
+  const openGroupEdit = async (t: TransactionRow) => {
+    if (!t.installment_group_id) return;
+    setLoadingGroup(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('installment_group_id', t.installment_group_id)
+        .order('billing_month', { ascending: true });
+      if (error) throw error;
+      setGroupRows((data ?? []) as GroupRow[]);
+      setGroupContextRowId(t.id);
+      setEditing(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar grupo');
+    } finally {
+      setLoadingGroup(false);
     }
   };
 
@@ -381,6 +407,7 @@ export function TransactionsView({
                     setEditing(null);
                     refresh();
                   }}
+                  onEditGroup={editing ? () => openGroupEdit(editing) : undefined}
                 />
               </div>
             </SheetContent>
@@ -534,6 +561,45 @@ export function TransactionsView({
           </TableBody>
         </Table>
       </div>
+
+      {/* Sheet: editar grupo (parcela ou recorrente) */}
+      <Sheet
+        open={!!groupRows}
+        onOpenChange={(o) => {
+          if (!o) {
+            setGroupRows(null);
+            setGroupContextRowId(null);
+          }
+        }}
+      >
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Editar grupo</SheetTitle>
+            <SheetDescription>
+              Mudar duração, encerrar a partir de uma ocorrência específica, ou aplicar campos a
+              todas. Por padrão linhas pagas ficam congeladas.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 px-4 pb-4">
+            {loadingGroup && (
+              <p className="text-sm italic text-muted-foreground">Carregando grupo...</p>
+            )}
+            {groupRows && (
+              <InstallmentGroupForm
+                rows={groupRows}
+                cards={cards}
+                categories={categories}
+                contextRowId={groupContextRowId ?? undefined}
+                onDone={() => {
+                  setGroupRows(null);
+                  setGroupContextRowId(null);
+                  refresh();
+                }}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

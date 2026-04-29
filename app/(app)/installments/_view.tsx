@@ -58,6 +58,7 @@ export function InstallmentsView({
   const [, startTransition] = useTransition();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<TransactionRow | null>(null);
+  const [groupContextRowId, setGroupContextRowId] = useState<string | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -182,7 +183,10 @@ export function InstallmentsView({
       <Sheet
         open={!!selectedGroup}
         onOpenChange={(o) => {
-          if (!o) setSelectedGroupId(null);
+          if (!o) {
+            setSelectedGroupId(null);
+            setGroupContextRowId(null);
+          }
         }}
       >
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
@@ -201,8 +205,10 @@ export function InstallmentsView({
                   rows={selectedGroup.rows}
                   cards={cards}
                   categories={categories}
+                  contextRowId={groupContextRowId ?? undefined}
                   onDone={() => {
                     setSelectedGroupId(null);
+                    setGroupContextRowId(null);
                     refresh();
                   }}
                 />
@@ -246,6 +252,16 @@ export function InstallmentsView({
                   setEditingTx(null);
                   refresh();
                 }}
+                onEditGroup={
+                  editingTx.installment_group_id
+                    ? () => {
+                        const groupId = editingTx.installment_group_id;
+                        setGroupContextRowId(editingTx.id);
+                        setSelectedGroupId(groupId);
+                        setEditingTx(null);
+                      }
+                    : undefined
+                }
               />
             )}
           </div>

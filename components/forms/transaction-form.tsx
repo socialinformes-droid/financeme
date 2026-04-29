@@ -50,9 +50,11 @@ export type TransactionFormProps = {
   onDone?: () => void;
   /** Quando passado, o formulário vira modo edit e faz UPDATE em vez de INSERT. */
   editing?: TransactionRow | null;
+  /** Chamado quando o user clica em "Editar grupo" no modo edit de uma linha de parcela/recorrente. */
+  onEditGroup?: () => void;
 };
 
-export function TransactionForm({ userId, cards, categories, onDone, editing }: TransactionFormProps) {
+export function TransactionForm({ userId, cards, categories, onDone, editing, onEditGroup }: TransactionFormProps) {
   const categoryList = categories?.length
     ? categories.map((c) => c.name)
     : DEFAULT_CATEGORIES.map((c) => c.name);
@@ -397,9 +399,21 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
         )}
 
         {isEdit && editing?.is_recurring && !editing?.is_installment && editing?.installment_group_id && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80">
-            Esta é uma ocorrência de um lançamento recorrente. A edição afeta só este mês —
-            outras ocorrências do grupo permanecem inalteradas.
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80 space-y-2">
+            <p>
+              Esta é uma ocorrência de um lançamento recorrente. A edição aqui afeta só este mês.
+            </p>
+            {onEditGroup && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEditGroup}
+                className="h-7 text-xs"
+              >
+                Editar grupo / encerrar
+              </Button>
+            )}
           </div>
         )}
 
@@ -440,9 +454,22 @@ export function TransactionForm({ userId, cards, categories, onDone, editing }: 
         )}
 
         {isEdit && editing?.is_installment && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80">
-            Esta é a parcela {editing.installment_number}/{editing.total_installments}.
-            A edição afeta só esta linha — outras parcelas do grupo permanecem inalteradas.
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-foreground/80 space-y-2">
+            <p>
+              Esta é a parcela {editing.installment_number}/{editing.total_installments}. A edição
+              aqui afeta só esta linha.
+            </p>
+            {onEditGroup && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEditGroup}
+                className="h-7 text-xs"
+              >
+                Editar grupo / encerrar
+              </Button>
+            )}
           </div>
         )}
 
