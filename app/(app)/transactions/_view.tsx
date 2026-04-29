@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
+  DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -78,14 +78,7 @@ function MultiSelect({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            className="flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50"
-          />
-        }
-      >
+      <DropdownMenuTrigger className="flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50">
         {isNeutral ? (
           <span className="text-muted-foreground/70 text-[11px] uppercase tracking-wider">
             {label}
@@ -101,27 +94,28 @@ function MultiSelect({
         <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-72 min-w-44">
-        <DropdownMenuLabel className="flex items-center justify-between gap-2">
-          <span className="uppercase tracking-wider text-[10px]">{label}</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={selectAll}
-              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
-            >
-              todos
-            </button>
-            {values.length > 0 && (
-              <button
-                type="button"
-                onClick={clear}
-                className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
-              >
-                limpar
-              </button>
-            )}
-          </div>
-        </DropdownMenuLabel>
+        <DropdownMenuItem
+          closeOnClick={false}
+          onClick={(e) => {
+            e.preventDefault();
+            selectAll();
+          }}
+          className="text-[11px] uppercase tracking-wider text-muted-foreground"
+        >
+          Marcar todos
+        </DropdownMenuItem>
+        {values.length > 0 && (
+          <DropdownMenuItem
+            closeOnClick={false}
+            onClick={(e) => {
+              e.preventDefault();
+              clear();
+            }}
+            className="text-[11px] uppercase tracking-wider text-muted-foreground"
+          >
+            Limpar
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         {options.map((o) => (
           <DropdownMenuCheckboxItem
