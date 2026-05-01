@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
 import { SEED_TRANSACTIONS } from '@/lib/seed-data';
+import { addMonthsToISO } from '@/lib/format';
 
 type SB = SupabaseClient<Database>;
 
@@ -75,31 +76,57 @@ export async function seedInitialData(supabase: SB, userId: string): Promise<See
 
   // Marca padrões repetidos como parcelas (Dentista, Manual)
   // — a planilha não tem essa metadata, mas semanticamente são compras parceladas.
+  // Política bounded-by-year ([[013-grupos-bounded-por-ano]]): cria UM GRUPO POR ANO,
+  // numerando 1..N dentro do ano e gerando installment_group_id distinto. A planilha
+  // tem duplicata em dez/26 (shift de fechamento) — reescreve billing como
+  // first + (i-1) meses dentro do ano pra evitar duplicata e buracos.
   const INSTALLMENT_PATTERNS = ['Dentista', 'Manual'];
   for (const desc of INSTALLMENT_PATTERNS) {
     const { data: rows, error: fetchErr } = await supabase
       .from('transactions')
-      .select('id, billing_month')
+      .select('id, billing_month, expense_month')
       .eq('user_id', userId)
       .eq('description', desc)
       .order('expense_month', { ascending: true });
     if (fetchErr) throw fetchErr;
     if (!rows || rows.length < 2) continue;
-    const groupId = crypto.randomUUID();
-    const total = rows.length;
-    const endDate = rows[rows.length - 1].billing_month;
-    for (let i = 0; i < rows.length; i++) {
-      const { error: updErr } = await supabase
-        .from('transactions')
-        .update({
-          is_installment: true,
-          installment_number: i + 1,
-          total_installments: total,
-          installment_group_id: groupId,
-          installment_end_date: endDate,
-        })
-        .eq('id', rows[i].id);
-      if (updErr) throw updErr;
+
+    const byYear = new Map<string, typeof rows>();
+    for (const r of rows) {
+      if (!r.billing_month) continue;
+      const y = r.billing_month.slice(0, 4);
+      const arr = byYear.get(y) ?? [];
+      arr.push(r);
+      byYear.set(y, arr);
+    }
+
+    for (const [, yearRows] of byYear) {
+      yearRows.sort((a, b) => (a.billing_month ?? '').localeCompare(b.billing_month ?? ''));
+      const groupId = crypto.randomUUID();
+      const total = yearRows.length;
+      const startBilling = yearRows[0].billing_month;
+      if (!startBilling) continue;
+      const endDate = addMonthsToISO(startBilling, total - 1);
+      for (let i = 0; i < yearRows.length; i++) {
+        const billing = addMonthsToISO(startBilling, i);
+        // bounded-by-year: cada parcela tem expense_month = billing_month dela
+        // (não mais o mês único da compra original — política de grupo isolado por ano).
+        const { error: updErr } = await supabase
+          .from('transactions')
+          .update({
+            is_installment: true,
+            installment_number: i + 1,
+            total_installments: total,
+            installment_group_id: groupId,
+            installment_end_date: endDate,
+            billing_month: billing,
+            expense_month: billing,
+            transaction_date: billing,
+            description: `${desc} (${i + 1}/${total})`,
+          })
+          .eq('id', yearRows[i].id);
+        if (updErr) throw updErr;
+      }
     }
   }
 

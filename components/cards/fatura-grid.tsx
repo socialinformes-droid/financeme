@@ -130,14 +130,19 @@ export function FaturaGrid({
       const existing = lumpGrid.get(cellKey);
 
       if (newLump === 0) {
-        // Remove a linha agregada — o total da fatura é coberto 100% pelos itemizados.
+        // Não deleta — mantém placeholder amount=0 pra preservar o vínculo cartão+mês.
+        // O dashboard/pivot ignora amount=0 nas somas, e /transactions filtra essas rows.
         if (existing && existing.ids.length > 0) {
-          const { error } = await supabase
+          const [first, ...rest] = existing.ids;
+          const { error: updErr } = await supabase
             .from('transactions')
-            .delete()
-            .in('id', existing.ids);
-          if (error) throw error;
-          toast.success('Fatura coberta pelos itemizados');
+            .update({ amount: 0 })
+            .eq('id', first);
+          if (updErr) throw updErr;
+          if (rest.length > 0) {
+            await supabase.from('transactions').delete().in('id', rest);
+          }
+          toast.success('Fatura zerada (coberta pelos itemizados)');
         }
       } else if (existing && existing.ids.length > 0) {
         // Atualiza a primeira, remove duplicatas

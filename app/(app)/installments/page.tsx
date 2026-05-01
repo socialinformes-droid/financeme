@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { toISODate, firstDayOfMonth } from '@/lib/format';
-import { resolveYear } from '@/lib/domain/years';
+import { resolveYearWithCookie } from '@/lib/domain/years';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 import { InstallmentsView, type Group } from './_view';
 
@@ -18,7 +18,7 @@ export default async function InstallmentsPage({
   if (!user) return null;
 
   const { year: yearParam } = await searchParams;
-  const year = resolveYear(yearParam);
+  const year = await resolveYearWithCookie(yearParam);
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year + 1}-01-01`;
 

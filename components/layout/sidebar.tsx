@@ -1,7 +1,17 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+
+function useClientCookieYear(): string | null {
+  const [year, setYear] = useState<string | null>(null);
+  useEffect(() => {
+    const m = document.cookie.match(/(?:^|;\s*)selected_year=(\d{4})/);
+    setYear(m ? m[1] : null);
+  }, []);
+  return year;
+}
 import {
   LayoutDashboard,
   ArrowDownUp,
@@ -62,6 +72,10 @@ export function SidebarContent({
     router.refresh();
   };
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const cookieYear = useClientCookieYear();
+  const yearParam = searchParams.get('year') ?? cookieYear;
+  const linkHref = (href: string) => (yearParam ? `${href}?year=${yearParam}` : href);
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
     day: '2-digit',
@@ -99,7 +113,7 @@ export function SidebarContent({
             return (
               <li key={item.href}>
                 <Link
-                  href={disabled ? '#' : item.href}
+                  href={disabled ? '#' : linkHref(item.href)}
                   aria-disabled={disabled}
                   onClick={(e) => {
                     if (disabled) {

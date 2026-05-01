@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { resolveYear } from '@/lib/domain/years';
+import { resolveYearWithCookie } from '@/lib/domain/years';
 import {
   toISODate,
   firstDayOfMonth,
@@ -35,7 +35,7 @@ export default async function ForecastPage({
   if (!user) return null;
 
   const { year: yearParam } = await searchParams;
-  const year = resolveYear(yearParam);
+  const year = await resolveYearWithCookie(yearParam);
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year + 1}-01-01`;
   const todayKey = toISODate(firstDayOfMonth(new Date()));

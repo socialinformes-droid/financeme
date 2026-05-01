@@ -1,8 +1,13 @@
 /**
  * Resolve o ano selecionado a partir do searchParams + busca anos disponíveis no DB.
+ * Persiste o ano selecionado em cookie pra UX "sticky" — selecionou 2027 uma vez,
+ * todas as páginas seguintes assumem 2027 mesmo se a URL não tiver ?year=.
  */
+import { cookies } from 'next/headers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
+
+export const SELECTED_YEAR_COOKIE = 'selected_year';
 
 export async function getAvailableYears(
   supabase: SupabaseClient<Database>,
@@ -22,12 +27,33 @@ export async function getAvailableYears(
   return [...years].sort();
 }
 
+function parseYear(v: string | string[] | undefined | null): number | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 2000 && n <= 2100 ? n : null;
+}
+
+/**
+ * Resolução prioritizada: searchParam → cookie → ano atual.
+ * Server-only: usa next/headers cookies(). Use nas pages app/(app)/.../page.tsx.
+ */
+export async function resolveYearWithCookie(
+  searchParam: string | string[] | undefined,
+): Promise<number> {
+  const fromParam = parseYear(searchParam);
+  if (fromParam !== null) return fromParam;
+  const c = await cookies();
+  const fromCookie = parseYear(c.get(SELECTED_YEAR_COOKIE)?.value);
+  if (fromCookie !== null) return fromCookie;
+  return new Date().getFullYear();
+}
+
+/** @deprecated Use resolveYearWithCookie pra suportar persistência via cookie. */
 export function resolveYear(
   searchParam: string | string[] | undefined,
   fallback?: number,
 ): number {
-  const v = Array.isArray(searchParam) ? searchParam[0] : searchParam;
-  const n = Number(v);
-  if (Number.isFinite(n) && n >= 2000 && n <= 2100) return n;
+  const fromParam = parseYear(searchParam);
+  if (fromParam !== null) return fromParam;
   return fallback ?? new Date().getFullYear();
 }
