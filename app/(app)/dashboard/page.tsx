@@ -300,9 +300,14 @@ function SummaryCard({
         ? 'text-money-down'
         : 'text-foreground';
   return (
-    <div className="bg-card px-5 py-4">
-      <p className="eyebrow">{label}</p>
-      <p className={`mt-2 font-mono text-2xl tabular-nums ${colorClass}`}>{formatBRL(value)}</p>
+    <div className="bg-card px-4 py-4 min-w-0">
+      <p className="eyebrow truncate">{label}</p>
+      <p
+        className={`mt-2 font-mono text-lg md:text-xl lg:text-2xl tabular-nums truncate ${colorClass}`}
+        title={formatBRL(value)}
+      >
+        {formatBRL(value)}
+      </p>
     </div>
   );
 }
