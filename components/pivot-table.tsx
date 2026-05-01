@@ -179,7 +179,7 @@ export function PivotTable({
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-20 bg-paper-dark/95 backdrop-blur px-4 py-2.5 text-left font-medium border-b-2 border-rule/80 min-w-[200px] text-foreground"
+                className="sticky left-0 z-20 bg-paper-dark px-4 py-2.5 text-left font-medium border-b-2 border-rule/80 min-w-[200px] text-foreground"
               >
                 <span className="eyebrow">Motivo</span>
               </th>
@@ -240,7 +240,7 @@ export function PivotTable({
               )}
               onMouseEnter={() => setHover((h) => ({ ...h, row: 'total' }))}
             >
-              <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-3 border-t-2 border-double border-rule">
+              <td className="sticky left-0 z-10 bg-paper-dark px-4 py-3 border-t-2 border-double border-rule">
                 <span className="font-display text-sm italic">Calculado</span>
               </td>
               {totalsByMonth.map((v, i) => (
@@ -317,7 +317,7 @@ export function PivotTable({
                 )}
                 onMouseEnter={() => setHover((h) => ({ ...h, row: 'diff' }))}
               >
-                <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2 border-b border-rule/40">
+                <td className="sticky left-0 z-10 bg-paper-dark px-4 py-2 border-b border-rule/40">
                   <span className="font-display text-xs italic text-muted-foreground">
                     Δ Diferença
                   </span>
@@ -446,7 +446,7 @@ function Section({
         onClick={() => setOpen(!open)}
         onMouseEnter={() => setHover((h) => ({ ...h, row: headerRowId }))}
       >
-        <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2 font-medium">
+        <td className="sticky left-0 z-10 bg-paper-dark px-4 py-2 font-medium">
           <span className="flex items-center gap-2">
             {open ? (
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -495,7 +495,7 @@ function Section({
               <td
                 className={cn(
                   'sticky left-0 z-10 bg-card px-4 py-2 pl-9 transition-colors',
-                  isRowHover(rowId) && 'bg-paper-dark/40',
+                  isRowHover(rowId) && 'bg-paper-dark',
                 )}
               >
                 <span className="inline-flex items-center gap-2.5">

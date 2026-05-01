@@ -210,7 +210,7 @@ export function FaturaGrid({
         <table className="w-full text-xs font-mono border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-2.5 text-left font-medium border-b-2 border-rule/80 min-w-[140px]">
+              <th className="sticky left-0 z-10 bg-paper-dark px-4 py-2.5 text-left font-medium border-b-2 border-rule/80 min-w-[140px]">
                 <span className="eyebrow">Cartão</span>
               </th>
               {months.map((m) => (
@@ -269,7 +269,7 @@ export function FaturaGrid({
             ))}
             {/* Total row */}
             <tr className="bg-paper-dark/50 font-medium border-double">
-              <td className="sticky left-0 z-10 bg-paper-dark/95 backdrop-blur px-4 py-3 border-t-2 border-double border-rule">
+              <td className="sticky left-0 z-10 bg-paper-dark px-4 py-3 border-t-2 border-double border-rule">
                 <span className="font-display text-sm italic">Total Cartão</span>
               </td>
               {monthTotals.map((v, i) => (
