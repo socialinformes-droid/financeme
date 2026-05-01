@@ -32,30 +32,20 @@ export default async function Dashboard({
     ? toISODate(firstDayOfMonth(today))
     : `${year}-01-01`;
 
-  const [
-    { data: allTxs, error: txError },
-    { data: actualsData, error: actualsError },
-    { data: usedCategories },
-  ] = await Promise.all([
-    supabase
-      .from('transactions')
-      .select('*')
-      .gte('expense_month', startOfYear)
-      .lt('expense_month', endOfYear)
-      .order('transaction_date', { ascending: true }),
-    supabase
-      .from('monthly_actuals')
-      .select('month,balance')
-      .gte('month', startOfYear)
-      .lt('month', endOfYear),
-    // Categorias usadas em QUALQUER ano (passado, presente ou futuro) — garante que
-    // categorias estruturais (Cartão, Salário, etc.) apareçam no pivot mesmo se o ano
-    // selecionado ainda não tiver dados nelas. User preenche via /cards ou /transactions.
-    supabase
-      .from('transactions')
-      .select('type,category')
-      .not('category', 'is', null),
-  ]);
+  const [{ data: allTxs, error: txError }, { data: actualsData, error: actualsError }] =
+    await Promise.all([
+      supabase
+        .from('transactions')
+        .select('*')
+        .gte('expense_month', startOfYear)
+        .lt('expense_month', endOfYear)
+        .order('transaction_date', { ascending: true }),
+      supabase
+        .from('monthly_actuals')
+        .select('month,balance')
+        .gte('month', startOfYear)
+        .lt('month', endOfYear),
+    ]);
 
   if (txError) console.error('[dashboard tx]', txError);
   if (actualsError) console.error('[dashboard actuals]', actualsError);
@@ -96,16 +86,6 @@ export default async function Dashboard({
     expense_month: t.expense_month,
     billing_month: t.billing_month,
   }));
-
-  const forceCategories = (() => {
-    const exp = new Set<string>();
-    const inc = new Set<string>();
-    for (const r of (usedCategories ?? []) as { type: 'income' | 'expense'; category: string }[]) {
-      if (!r.category) continue;
-      (r.type === 'income' ? inc : exp).add(r.category);
-    }
-    return { expense: [...exp].sort(), income: [...inc].sort() };
-  })();
 
   const upcomingInstallments = txs
     .filter((t) => t.is_installment && t.billing_month === currentMonthKey && !t.is_paid)
@@ -163,7 +143,6 @@ export default async function Dashboard({
           monthsCount={12}
           actuals={actuals}
           userId={userId}
-          forceCategories={forceCategories}
         />
       </section>
 

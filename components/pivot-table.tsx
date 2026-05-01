@@ -31,8 +31,6 @@ type PivotProps = {
   actuals?: MonthlyActual[];
   /** Quando passado, habilita edição inline da linha Real */
   userId?: string;
-  /** Categorias que devem sempre aparecer no pivot, mesmo sem dados no período (ex: "Cartão" estruturalmente conhecida). Lista vem do dashboard, derivada de transactions de qualquer ano. */
-  forceCategories?: { expense: string[]; income: string[] };
 };
 
 type Hover = { row: string | null; col: string | null };
@@ -44,7 +42,6 @@ export function PivotTable({
   monthsCount = 12,
   actuals = [],
   userId,
-  forceCategories,
 }: PivotProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -102,14 +99,6 @@ export function PivotTable({
   const grouped = useMemo(() => {
     const map = new Map<string, Map<string, Map<string, number>>>();
     let outOfRange = 0;
-    // pré-popula com categorias forçadas pra garantir presença mesmo sem dados no ano
-    if (forceCategories) {
-      for (const t of ['expense', 'income'] as const) {
-        const tBucket = new Map<string, Map<string, number>>();
-        for (const c of forceCategories[t]) tBucket.set(c, new Map());
-        map.set(t, tBucket);
-      }
-    }
     for (const row of data) {
       const m = monthAxis === 'expense' ? row.expense_month : row.billing_month;
       if (!m) continue;
@@ -130,7 +119,7 @@ export function PivotTable({
       cBucket.set(m, (cBucket.get(m) ?? 0) + row.amount);
     }
     return { map, outOfRange };
-  }, [data, monthAxis, months, forceCategories]);
+  }, [data, monthAxis, months]);
 
   const expenseSection = buildSection(grouped.map.get('expense'), months);
   const incomeSection = buildSection(grouped.map.get('income'), months);
