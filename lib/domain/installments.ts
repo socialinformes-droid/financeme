@@ -97,10 +97,6 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
     input.card ?? null,
   );
 
-  // Política: grupos não atravessam ano. Quando o user quer N parcelas que cruzariam
-  // dezembro, força criar um grupo separado por ano (decisão do user, [[013-grupos-bounded-por-ano]]).
-  assertGroupWithinYear(startBilling, input.installments);
-
   const rounded = Math.round((input.totalAmount / input.installments) * 100) / 100;
   const sumExceptLast = +(rounded * (input.installments - 1)).toFixed(2);
   const lastAmount = +(input.totalAmount - sumExceptLast).toFixed(2);
@@ -158,7 +154,6 @@ export function createRecurringTransactions(input: RecurrenceInput): RecurrenceR
     input.paymentMethod,
     input.card ?? null,
   );
-  assertGroupWithinYear(startBilling, input.months);
   const installmentEndDate = addMonthsToISO(startBilling, input.months - 1);
   const sign = input.type === 'income' ? 1 : -1;
   const signed = +(input.amount * sign).toFixed(2);
@@ -193,28 +188,6 @@ export function createRecurringTransactions(input: RecurrenceInput): RecurrenceR
     });
   }
   return rows;
-}
-
-/**
- * Política do app: um grupo de parcelas/recorrentes vive dentro de um único ano civil.
- * Se o user quer estender pra próximo ano, cria um grupo novo em janeiro daquele ano
- * (cada ano constrói o seu). Evita que /transactions?year=Y mostre parcelas com
- * referência cruzada a anos anteriores e simplifica análise. Veja `decisoes/013-...`.
- */
-export function assertGroupWithinYear(startBillingISO: string, count: number): void {
-  if (count < 1) return;
-  const startYear = startBillingISO.slice(0, 4);
-  const endISO = addMonthsToISO(startBillingISO, count - 1);
-  const endYear = endISO.slice(0, 4);
-  if (startYear !== endYear) {
-    const startMonth = parseInt(startBillingISO.slice(5, 7), 10);
-    const maxAllowed = 13 - startMonth;
-    throw new Error(
-      `Grupos não podem atravessar ano. ${count} a partir de ${startBillingISO.slice(0, 7)} ` +
-        `terminaria em ${endISO.slice(0, 7)}. Máximo: ${maxAllowed}. ` +
-        `Crie um grupo separado em janeiro de ${Number(startYear) + 1} pro restante.`,
-    );
-  }
 }
 
 function cryptoUUID(): string {
@@ -303,10 +276,6 @@ export function groupResize(opts: {
 
   const recurring = isRecurringGroup(sorted);
   const baseDesc = stripInstallmentSuffix(sorted[0].description);
-  // grupo bounded por ano — aumentar não pode atravessar dezembro do ano de início
-  if (opts.newTotal > currentTotal) {
-    assertGroupWithinYear(sorted[0].billing_month, opts.newTotal);
-  }
   const newEndBilling = addMonthsToISO(sorted[0].billing_month, opts.newTotal - 1);
 
   if (opts.newTotal < currentTotal) {
@@ -415,16 +384,6 @@ export function groupReschedule(opts: {
         : r.billing_month;
     return { id: r.id, oldBilling: r.billing_month, newBilling, oldEnd: r.installment_end_date };
   });
-
-  // grupo bounded por ano — checa se algum billing pulou pra outro ano
-  const projectedYears = new Set(
-    projected.map((p) => p.newBilling?.slice(0, 4)).filter((y): y is string => !!y),
-  );
-  if (projectedYears.size > 1) {
-    throw new Error(
-      `Reagendar atravessaria ano (${[...projectedYears].sort().join(', ')}). Grupos vivem em um único ano civil. Crie um grupo separado pro outro ano.`,
-    );
-  }
 
   const newEnd = projected.reduce<string>((max, p) => {
     if (!p.newBilling) return max;
