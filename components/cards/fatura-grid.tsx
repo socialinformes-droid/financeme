@@ -117,13 +117,7 @@ export function FaturaGrid({
     const itemized = cellItemized(card.id, billingMonth);
     // O user digita o TOTAL da fatura; o app armazena só o "resto" (= total - itemizados),
     // pra evitar dupla contagem com lançamentos individuais que já têm card_id.
-    const newLump = +(newTotal - itemized).toFixed(2);
-    if (newLump < 0) {
-      toast.error(
-        `Total não pode ser menor que ${formatBRL(itemized)} (já lançado individualmente neste mês)`,
-      );
-      return;
-    }
+    const newLump = Math.max(0, +(newTotal - itemized).toFixed(2));
     setSavingCell(cellKey);
     try {
       const supabase = createClient();
