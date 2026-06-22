@@ -145,7 +145,7 @@ export function CardsView({
           year={year}
         />
 
-        <ExtratoComparativo cards={initialCards} transactions={transactions} year={year} />
+        <ExtratoComparativo cards={initialCards} transactions={transactions} />
 
         <div className="flex items-end justify-between gap-3 pb-2 border-b border-rule/40 pt-4">
           <div>

@@ -20,7 +20,6 @@ export function ExtratoComparativo({
 }: {
   cards: CardRow[];
   transactions: TransactionRow[];
-  year: number;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     cards.slice(0, MAX_SELECTED).map((c) => c.id),

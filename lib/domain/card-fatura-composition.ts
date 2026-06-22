@@ -44,6 +44,9 @@ export function composeFatura(
 
   for (const t of transactions) {
     if (t.card_id !== cardId || t.billing_month !== billingMonth) continue;
+    // Só despesas compõem a fatura. O guard vem antes do lump de propósito:
+    // linhas "Cartão" são sempre type=expense, então não há divergência prática
+    // com o FaturaGrid (que soma lump independente do tipo).
     if (t.type !== 'expense') continue;
 
     if (isLumpFatura(t)) {
