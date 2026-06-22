@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/sheet';
 import { CardForm } from '@/components/forms/card-form';
 import { FaturaGrid } from '@/components/cards/fatura-grid';
+import { ExtratoComparativo } from '@/components/cards/extrato-comparativo';
 import type { CardRow, TransactionRow } from '@/lib/supabase/types';
 
 export function CardsView({
@@ -143,6 +144,8 @@ export function CardsView({
           transactions={transactions}
           year={year}
         />
+
+        <ExtratoComparativo cards={initialCards} transactions={transactions} year={year} />
 
         <div className="flex items-end justify-between gap-3 pb-2 border-b border-rule/40 pt-4">
           <div>
