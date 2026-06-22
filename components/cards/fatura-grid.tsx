@@ -6,6 +6,7 @@ import { Check, Circle, CircleDot } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { formatBRL, formatMonthBR, addMonthsToISO } from '@/lib/format';
+import { isLumpFatura } from '@/lib/domain/card-fatura-composition';
 import { cn } from '@/lib/utils';
 import type { CardRow, TransactionRow, Database } from '@/lib/supabase/types';
 
@@ -45,7 +46,7 @@ export function FaturaGrid({
     for (const t of transactions) {
       if (!t.card_id || !t.billing_month) continue;
       const key = `${t.card_id}-${t.billing_month}`;
-      const isLump = t.category === 'Cartão' && !t.description.includes('(');
+      const isLump = isLumpFatura(t);
       if (isLump) {
         const cur = lump.get(key) ?? { sum: 0, ids: [] };
         cur.sum += Math.abs(Number(t.amount));
