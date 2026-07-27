@@ -48,6 +48,8 @@ import {
 import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
+import { ViewTypeFilter } from './components/view-type-filter';
+import { useTransactionViewType } from '@/hooks/use-transaction-view-type';
 import type { GroupRow } from '@/lib/domain/installments';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
@@ -217,6 +219,7 @@ export function TransactionsView({
     : DEFAULT_CATEGORIES.map((c) => c.name);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const { viewType, setViewType } = useTransactionViewType();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -416,48 +419,59 @@ export function TransactionsView({
       </header>
 
       {/* Filtros */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-        <div className="col-span-2 md:col-span-2 relative">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Buscar descrição..."
-            value={filters.q}
-            onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+          <div className="col-span-2 md:col-span-2 relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder="Buscar descrição..."
+              value={filters.q}
+              onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+            />
+          </div>
+          <MultiSelect
+            label="Tipo"
+            values={filters.type}
+            onChange={(v) => setFilters((f) => ({ ...f, type: v as TxType[] }))}
+            options={[
+              { value: 'income', label: 'Entradas' },
+              { value: 'expense', label: 'Saídas' },
+            ]}
+          />
+          <MultiSelect
+            label="Método"
+            values={filters.method}
+            onChange={(v) => setFilters((f) => ({ ...f, method: v as PaymentMethod[] }))}
+            options={[
+              { value: 'credit', label: 'Crédito' },
+              { value: 'debit', label: 'Débito' },
+              { value: 'pix', label: 'PIX' },
+              { value: 'cash', label: 'Dinheiro' },
+            ]}
+          />
+          <MultiSelect
+            label="Categoria"
+            values={filters.category}
+            onChange={(v) => setFilters((f) => ({ ...f, category: v }))}
+            options={categoryNames.map((c) => ({ value: c, label: c }))}
+          />
+          <MultiSelect
+            label="Mês"
+            values={filters.expenseMonth}
+            onChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v }))}
+            options={months.map((m) => ({ value: m, label: formatMonthBR(m) }))}
           />
         </div>
-        <MultiSelect
-          label="Tipo"
-          values={filters.type}
-          onChange={(v) => setFilters((f) => ({ ...f, type: v as TxType[] }))}
-          options={[
-            { value: 'income', label: 'Entradas' },
-            { value: 'expense', label: 'Saídas' },
-          ]}
-        />
-        <MultiSelect
-          label="Método"
-          values={filters.method}
-          onChange={(v) => setFilters((f) => ({ ...f, method: v as PaymentMethod[] }))}
-          options={[
-            { value: 'credit', label: 'Crédito' },
-            { value: 'debit', label: 'Débito' },
-            { value: 'pix', label: 'PIX' },
-            { value: 'cash', label: 'Dinheiro' },
-          ]}
-        />
-        <MultiSelect
-          label="Categoria"
-          values={filters.category}
-          onChange={(v) => setFilters((f) => ({ ...f, category: v }))}
-          options={categoryNames.map((c) => ({ value: c, label: c }))}
-        />
-        <MultiSelect
-          label="Mês"
-          values={filters.expenseMonth}
-          onChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v }))}
-          options={months.map((m) => ({ value: m, label: formatMonthBR(m) }))}
-        />
+
+        {/* Visualização: Gasto vs Faturado */}
+        <div className="flex items-center gap-3 px-0.5">
+          <span className="text-sm font-medium text-muted-foreground">Visualização:</span>
+          <ViewTypeFilter
+            viewType={viewType}
+            onViewTypeChange={setViewType}
+          />
+        </div>
       </div>
 
       {/* Tabela */}
