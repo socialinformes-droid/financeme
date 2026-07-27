@@ -240,12 +240,17 @@ export function TransactionsView({
 
   const months = useMemo(() => {
     const set = new Set<string>();
-    for (const t of initialTransactions) if (t.expense_month) set.add(t.expense_month);
+    const monthField = viewType === 'gasto' ? 'expense_month' : 'billing_month';
+    for (const t of initialTransactions) {
+      const month = t[monthField];
+      if (month) set.add(month);
+    }
     return [...set].sort().reverse();
-  }, [initialTransactions]);
+  }, [initialTransactions, viewType]);
 
   const filtered = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
+    const monthField = viewType === 'gasto' ? 'expense_month' : 'billing_month';
     return initialTransactions.filter((t) => {
       if (filters.type.length && !filters.type.includes(t.type as TxType)) return false;
       if (filters.method.length && !filters.method.includes(t.payment_method as PaymentMethod))
@@ -255,12 +260,12 @@ export function TransactionsView({
         if (!filters.status.includes(s)) return false;
       }
       if (filters.category.length && !filters.category.includes(t.category)) return false;
-      if (filters.expenseMonth.length && !filters.expenseMonth.includes(t.expense_month ?? ''))
+      if (filters.expenseMonth.length && !filters.expenseMonth.includes(t[monthField] ?? ''))
         return false;
       if (q && !t.description.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [initialTransactions, filters]);
+  }, [initialTransactions, filters, viewType]);
 
   const totals = useMemo(() => {
     let income = 0;
