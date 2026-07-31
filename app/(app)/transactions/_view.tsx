@@ -144,6 +144,8 @@ type Filters = {
   status: StatusFilter[];
   category: string[];
   expenseMonth: string[];
+  startDate: string;
+  endDate: string;
 };
 
 type SortKey =
@@ -230,6 +232,8 @@ export function TransactionsView({
     status: [],
     category: [],
     expenseMonth: [],
+    startDate: '',
+    endDate: '',
   });
   const [sort, setSort] = useState<SortState>({ key: 'transaction_date', dir: 'desc' });
   const toggleSort = (key: SortKey) =>
@@ -254,6 +258,8 @@ export function TransactionsView({
       if (filters.category.length && !filters.category.includes(t.category)) return false;
       if (filters.expenseMonth.length && !filters.expenseMonth.includes(t.expense_month ?? ''))
         return false;
+      if (filters.startDate && t.transaction_date < filters.startDate) return false;
+      if (filters.endDate && t.transaction_date > filters.endDate) return false;
       if (q && !t.description.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -416,7 +422,7 @@ export function TransactionsView({
       </header>
 
       {/* Filtros */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-8 gap-2">
         <div className="col-span-2 md:col-span-2 relative">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -457,6 +463,20 @@ export function TransactionsView({
           values={filters.expenseMonth}
           onChange={(v) => setFilters((f) => ({ ...f, expenseMonth: v }))}
           options={months.map((m) => ({ value: m, label: formatMonthBR(m) }))}
+        />
+        <Input
+          type="date"
+          placeholder="Data inicial"
+          value={filters.startDate}
+          onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
+          title="Filtrar a partir desta data"
+        />
+        <Input
+          type="date"
+          placeholder="Data final"
+          value={filters.endDate}
+          onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))}
+          title="Filtrar até esta data"
         />
       </div>
 
