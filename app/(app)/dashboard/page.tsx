@@ -48,13 +48,14 @@ export default async function Dashboard({
       .select('month,balance')
       .gte('month', startOfYear)
       .lt('month', endOfYear),
-    // Parcelas/recorrências cuja fatura (billing_month) cai neste ano, mesmo
-    // que a compra original (expense_month) seja anterior à janela acima
-    // (ex: parcelamento longo iniciado num ano anterior).
+    // Qualquer lançamento cuja fatura (billing_month) cai neste ano, mesmo que
+    // expense_month seja de outro ano — cobre tanto parcelamentos longos quanto
+    // uma compra avulsa no crédito perto do fechamento (ex: compra em dez/26
+    // com fatura em jan/27). Sem filtro de is_installment: o pivot no eixo
+    // "Mês fatura" precisa de todo mundo, não só parcelas.
     supabase
       .from('transactions')
       .select('*')
-      .eq('is_installment', true)
       .gte('billing_month', startOfYear)
       .lt('billing_month', endOfYear),
   ]);
