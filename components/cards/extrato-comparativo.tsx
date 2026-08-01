@@ -1,17 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Lock, CreditCard } from 'lucide-react';
 import { formatBRL, formatMonthBR, addMonthsToISO } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 import { composeFatura, type FaturaLine } from '@/lib/domain/card-fatura-composition';
 import type { CardRow, TransactionRow } from '@/lib/supabase/types';
 
 const MAX_SELECTED = 3;
 
 // Mês inicial do extrato: mês atual real se o ano exibido for o corrente,
-// senão janeiro do ano selecionado (senão o widget fica "preso" no mês real
-// mesmo navegando pra outro ano, e não acha nada nas transactions daquele ano).
+// senão janeiro do ano selecionado.
 function defaultBillingMonth(year: number): string {
   const d = new Date();
   if (year === d.getFullYear()) {
@@ -22,17 +22,39 @@ function defaultBillingMonth(year: number): string {
 
 export function ExtratoComparativo({
   cards,
-  transactions,
   year,
 }: {
   cards: CardRow[];
-  transactions: TransactionRow[];
   year: number;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     cards.slice(0, MAX_SELECTED).map((c) => c.id),
   );
   const [month, setMonth] = useState<string>(() => defaultBillingMonth(year));
+  // Busca própria por mês navegado — não depende do `transactions` da página, que
+  // só cobre o ano selecionado no seletor principal. Sem isso, navegar o extrato
+  // pra um mês de outro ano (via as setas) sempre vinha vazio, mesmo com dados
+  // reais naquele mês, porque a página nunca tinha buscado aquele ano do banco.
+  const [monthTxs, setMonthTxs] = useState<TransactionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const supabase = createClient();
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('billing_month', month)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error) setMonthTxs((data ?? []) as TransactionRow[]);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
 
   const selectedCards = useMemo(
     () => selectedIds.map((id) => cards.find((c) => c.id === id)).filter((c): c is CardRow => !!c),
@@ -109,13 +131,17 @@ export function ExtratoComparativo({
         <p className="text-sm italic text-muted-foreground py-8 text-center">
           Selecione ao menos um cartão para ver o extrato.
         </p>
+      ) : loading ? (
+        <p className="text-sm italic text-muted-foreground py-8 text-center">
+          Carregando…
+        </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {selectedCards.map((card) => (
             <ExtratoColumn
               key={card.id}
               card={card}
-              transactions={transactions}
+              transactions={monthTxs}
               month={month}
             />
           ))}
