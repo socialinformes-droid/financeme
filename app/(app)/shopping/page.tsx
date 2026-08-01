@@ -16,22 +16,24 @@ export default async function ShoppingPage() {
 
   const [{ data: items }, { data: futureTxs }] = await Promise.all([
     supabase.from('shopping_list').select('*').order('created_at', { ascending: false }),
-    // Saldo previsto = soma de transactions deste mês em diante
+    // Saldo previsto = soma de transactions deste mês em diante, por billing_month (fatura/quando
+    // o dinheiro efetivamente sai) — não por expense_month, que em compras parceladas fica travado
+    // no mês da compra original e some da previsão assim que passa da janela de "deste mês em diante".
     supabase
       .from('transactions')
-      .select('expense_month,type,amount')
-      .gte('expense_month', today)
-      .order('expense_month', { ascending: true }),
+      .select('billing_month,type,amount')
+      .gte('billing_month', today)
+      .order('billing_month', { ascending: true }),
   ]);
 
   // Calcula saldo previsto líquido (entradas - saídas) e por mês
-  const txs = (futureTxs ?? []) as Pick<TransactionRow, 'expense_month' | 'type' | 'amount'>[];
+  const txs = (futureTxs ?? []) as Pick<TransactionRow, 'billing_month' | 'type' | 'amount'>[];
   const monthlyBalance: Record<string, number> = {};
   let totalForecast = 0;
   for (const t of txs) {
-    if (!t.expense_month) continue;
-    monthlyBalance[t.expense_month] =
-      (monthlyBalance[t.expense_month] ?? 0) + Number(t.amount);
+    if (!t.billing_month) continue;
+    monthlyBalance[t.billing_month] =
+      (monthlyBalance[t.billing_month] ?? 0) + Number(t.amount);
     totalForecast += Number(t.amount);
   }
 

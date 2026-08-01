@@ -43,7 +43,7 @@ export default async function ForecastPage({
   // Pega todas as transações do ano + 6 meses antes (pra calcular médias)
   const lookbackStart = addMonthsToISO(startOfYear, -6);
 
-  const [{ data: txs }, { data: recurring }] = await Promise.all([
+  const [{ data: txs }, { data: recurring }, { data: billedTxs }] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
@@ -51,9 +51,21 @@ export default async function ForecastPage({
       .lt('expense_month', endOfYear)
       .order('expense_month', { ascending: true }),
     supabase.from('recurring_income').select('*').eq('is_active', true),
+    // Parcelas/recorrências cuja fatura (billing_month) cai neste ano, mesmo
+    // que a compra original (expense_month) seja anterior à janela de lookback
+    // acima (ex: parcelamento longo iniciado meses antes do range de 6 meses).
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('is_installment', true)
+      .gte('billing_month', startOfYear)
+      .lt('billing_month', endOfYear),
   ]);
 
-  const allTxs = (txs ?? []) as TransactionRow[];
+  const txMap = new Map<string, TransactionRow>();
+  for (const t of (txs ?? []) as TransactionRow[]) txMap.set(t.id, t);
+  for (const t of (billedTxs ?? []) as TransactionRow[]) txMap.set(t.id, t);
+  const allTxs = [...txMap.values()];
   const recurringIncomes = (recurring ?? []) as RecurringIncomeRow[];
 
   // ─────────────────────────────────────────────────────────────────────────

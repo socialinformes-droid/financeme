@@ -32,24 +32,45 @@ export default async function Dashboard({
     ? toISODate(firstDayOfMonth(today))
     : `${year}-01-01`;
 
-  const [{ data: allTxs, error: txError }, { data: actualsData, error: actualsError }] =
-    await Promise.all([
-      supabase
-        .from('transactions')
-        .select('*')
-        .gte('expense_month', startOfYear)
-        .lt('expense_month', endOfYear)
-        .order('transaction_date', { ascending: true }),
-      supabase
-        .from('monthly_actuals')
-        .select('month,balance')
-        .gte('month', startOfYear)
-        .lt('month', endOfYear),
-    ]);
+  const [
+    { data: allTxs, error: txError },
+    { data: actualsData, error: actualsError },
+    { data: billedTxs, error: billedError },
+  ] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('*')
+      .gte('expense_month', startOfYear)
+      .lt('expense_month', endOfYear)
+      .order('transaction_date', { ascending: true }),
+    supabase
+      .from('monthly_actuals')
+      .select('month,balance')
+      .gte('month', startOfYear)
+      .lt('month', endOfYear),
+    // Parcelas/recorrências cuja fatura (billing_month) cai neste ano, mesmo
+    // que a compra original (expense_month) seja anterior à janela acima
+    // (ex: parcelamento longo iniciado num ano anterior).
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('is_installment', true)
+      .gte('billing_month', startOfYear)
+      .lt('billing_month', endOfYear),
+  ]);
 
   if (txError) console.error('[dashboard tx]', txError);
   if (actualsError) console.error('[dashboard actuals]', actualsError);
+  if (billedError) console.error('[dashboard billed]', billedError);
+  // Set de competência (expense_month) — usado pra "mês atual" / "acumulado do ano" / gráficos,
+  // que representam movimentação financeira no ano por data de compra, não de fatura.
   const txs = (allTxs ?? []) as TransactionRow[];
+  // Set estendido com parcelas cuja fatura cai neste ano mesmo compradas antes da janela —
+  // usado só onde o billing_month importa (parcelas do mês, pivot no eixo "fatura").
+  const txMap = new Map<string, TransactionRow>();
+  for (const t of txs) txMap.set(t.id, t);
+  for (const t of (billedTxs ?? []) as TransactionRow[]) txMap.set(t.id, t);
+  const txsWithBilled = [...txMap.values()];
   const actuals: MonthlyActual[] = ((actualsData ?? []) as Pick<MonthlyActualRow, 'month' | 'balance'>[]).map(
     (a) => ({ month: a.month, balance: Number(a.balance) }),
   );
@@ -79,7 +100,7 @@ export default async function Dashboard({
     expense_month: t.expense_month,
   }));
 
-  const pivotRows: PivotRow[] = txs.map((t) => ({
+  const pivotRows: PivotRow[] = txsWithBilled.map((t) => ({
     type: t.type,
     category: t.category,
     amount: Number(t.amount),
@@ -87,7 +108,7 @@ export default async function Dashboard({
     billing_month: t.billing_month,
   }));
 
-  const upcomingInstallments = txs
+  const upcomingInstallments = txsWithBilled
     .filter((t) => t.is_installment && t.billing_month === currentMonthKey && !t.is_paid)
     .slice(0, 6);
 

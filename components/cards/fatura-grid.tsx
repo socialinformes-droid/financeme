@@ -32,7 +32,14 @@ export function FaturaGrid({
     [year],
   );
 
-  const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+  // Mês "hoje" só faz sentido destacar/usar como corte se o ano exibido for o
+  // corrente; senão usa janeiro do ano selecionado (evita comparar contra o
+  // mês real quando o user está navegando um ano diferente).
+  const today = new Date();
+  const todayKey =
+    year === today.getFullYear()
+      ? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+      : `${year}-01-01`;
 
   // Três maps:
   //  - `lumpGrid`: faturas principais (`category='Cartão'` sem parênteses) — o "resto" não-itemizado.

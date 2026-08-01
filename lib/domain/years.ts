@@ -12,14 +12,22 @@ export const SELECTED_YEAR_COOKIE = 'selected_year';
 export async function getAvailableYears(
   supabase: SupabaseClient<Database>,
 ): Promise<number[]> {
-  const { data } = await supabase
-    .from('transactions')
-    .select('expense_month')
-    .not('expense_month', 'is', null);
+  // Considera expense_month E billing_month: um parcelamento longo comprado
+  // num ano pode ter faturas em anos seguintes que não aparecem via expense_month
+  // sozinho (fica travado no mês da compra original em todas as parcelas).
+  const [{ data: byExpense }, { data: byBilling }] = await Promise.all([
+    supabase.from('transactions').select('expense_month').not('expense_month', 'is', null),
+    supabase.from('transactions').select('billing_month').not('billing_month', 'is', null),
+  ]);
   const years = new Set<number>();
-  for (const row of data ?? []) {
+  for (const row of byExpense ?? []) {
     if (!row.expense_month) continue;
     const y = Number(row.expense_month.slice(0, 4));
+    if (Number.isFinite(y)) years.add(y);
+  }
+  for (const row of byBilling ?? []) {
+    if (!row.billing_month) continue;
+    const y = Number(row.billing_month.slice(0, 4));
     if (Number.isFinite(y)) years.add(y);
   }
   // Sempre inclui o ano atual

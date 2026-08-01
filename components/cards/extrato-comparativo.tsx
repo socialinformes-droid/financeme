@@ -9,22 +9,30 @@ import type { CardRow, TransactionRow } from '@/lib/supabase/types';
 
 const MAX_SELECTED = 3;
 
-function currentBillingMonth(): string {
+// Mês inicial do extrato: mês atual real se o ano exibido for o corrente,
+// senão janeiro do ano selecionado (senão o widget fica "preso" no mês real
+// mesmo navegando pra outro ano, e não acha nada nas transactions daquele ano).
+function defaultBillingMonth(year: number): string {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  if (year === d.getFullYear()) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+  return `${year}-01-01`;
 }
 
 export function ExtratoComparativo({
   cards,
   transactions,
+  year,
 }: {
   cards: CardRow[];
   transactions: TransactionRow[];
+  year: number;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     cards.slice(0, MAX_SELECTED).map((c) => c.id),
   );
-  const [month, setMonth] = useState<string>(() => currentBillingMonth());
+  const [month, setMonth] = useState<string>(() => defaultBillingMonth(year));
 
   const selectedCards = useMemo(
     () => selectedIds.map((id) => cards.find((c) => c.id === id)).filter((c): c is CardRow => !!c),
