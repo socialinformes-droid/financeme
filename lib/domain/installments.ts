@@ -318,7 +318,10 @@ export function groupResize(opts: {
         card_id: sample.card_id,
         is_recurring: true,
         is_paid: false,
-        transaction_date: sample.transaction_date,
+        // Ocorrência recorrente é um evento novo a cada mês — desliza igual
+        // expense/billing_month. Diferente do ramo `else` (parcela), onde a
+        // compra é única e transaction_date fica fixo por design.
+        transaction_date: billingMonth,
         is_installment: false,
         installment_number: null,
         total_installments: null,
