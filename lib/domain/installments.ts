@@ -378,6 +378,11 @@ export function groupReschedule(opts: {
 }): { toUpdate: RowPatch[] } {
   if (opts.shiftMonths === 0) return { toUpdate: [] };
   const sorted = sortByNumber(opts.rows);
+  // Recorrente: cada linha é uma ocorrência real do mesmo evento — expense_month e
+  // transaction_date acompanham o billing_month deslocado (mesmo invariante que
+  // createRecurringTransactions/groupResize já mantêm). Parcela: compra única,
+  // só o vencimento (billing_month) muda; expense_month/transaction_date ficam fixos.
+  const recurring = isRecurringGroup(sorted);
 
   const projected = sorted.map((r) => {
     const shouldShift = opts.includePaid || !r.is_paid;
@@ -385,7 +390,22 @@ export function groupReschedule(opts: {
       shouldShift && r.billing_month
         ? addMonthsToISO(r.billing_month, opts.shiftMonths)
         : r.billing_month;
-    return { id: r.id, oldBilling: r.billing_month, newBilling, oldEnd: r.installment_end_date };
+    const newExpense =
+      recurring && shouldShift && r.expense_month
+        ? addMonthsToISO(r.expense_month, opts.shiftMonths)
+        : r.expense_month;
+    const newTxDate =
+      recurring && shouldShift ? addMonthsToISO(r.transaction_date, opts.shiftMonths) : r.transaction_date;
+    return {
+      id: r.id,
+      oldBilling: r.billing_month,
+      newBilling,
+      oldExpense: r.expense_month,
+      newExpense,
+      oldTxDate: r.transaction_date,
+      newTxDate,
+      oldEnd: r.installment_end_date,
+    };
   });
 
   const newEnd = projected.reduce<string>((max, p) => {
@@ -396,10 +416,14 @@ export function groupReschedule(opts: {
   const toUpdate: RowPatch[] = [];
   for (const p of projected) {
     const billingChanged = p.newBilling !== p.oldBilling;
+    const expenseChanged = p.newExpense !== p.oldExpense;
+    const txDateChanged = p.newTxDate !== p.oldTxDate;
     const endChanged = newEnd && p.oldEnd !== newEnd;
-    if (!billingChanged && !endChanged) continue;
+    if (!billingChanged && !expenseChanged && !txDateChanged && !endChanged) continue;
     const patch: Partial<GroupRow> = {};
     if (billingChanged) patch.billing_month = p.newBilling;
+    if (expenseChanged) patch.expense_month = p.newExpense;
+    if (txDateChanged) patch.transaction_date = p.newTxDate;
     if (endChanged) patch.installment_end_date = newEnd;
     toUpdate.push({ id: p.id, patch });
   }
