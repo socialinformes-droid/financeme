@@ -37,6 +37,7 @@ export type Database = {
           expense_month: string | null;
           billing_month: string | null;
           card_id: string | null;
+          cashbox_id: string | null;
           is_recurring: boolean;
           is_paid: boolean;
           transaction_date: string;
@@ -49,10 +50,11 @@ export type Database = {
         };
         Insert: Omit<
           Database['public']['Tables']['transactions']['Row'],
-          'id' | 'created_at'
+          'id' | 'created_at' | 'cashbox_id'
         > & {
           id?: string;
           created_at?: string;
+          cashbox_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['transactions']['Insert']>;
         Relationships: [];
@@ -155,6 +157,48 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['recurring_income']['Insert']>;
         Relationships: [];
       };
+      cashboxes: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          monthly_goal: number | null;
+          total_goal: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          monthly_goal?: number | null;
+          total_goal?: number | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['cashboxes']['Insert']>;
+        Relationships: [];
+      };
+      cashbox_withdrawals: {
+        Row: {
+          id: string;
+          user_id: string;
+          cashbox_id: string;
+          amount: number;
+          withdrawal_date: string;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          cashbox_id: string;
+          amount: number;
+          withdrawal_date: string;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['cashbox_withdrawals']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -170,3 +214,5 @@ export type BudgetRow = Database['public']['Tables']['budgets']['Row'];
 export type RecurringIncomeRow = Database['public']['Tables']['recurring_income']['Row'];
 export type MonthlyActualRow = Database['public']['Tables']['monthly_actuals']['Row'];
 export type CategoryRow = Database['public']['Tables']['categories']['Row'];
+export type CashboxRow = Database['public']['Tables']['cashboxes']['Row'];
+export type CashboxWithdrawalRow = Database['public']['Tables']['cashbox_withdrawals']['Row'];
