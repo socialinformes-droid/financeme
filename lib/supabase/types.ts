@@ -199,6 +199,28 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['cashbox_withdrawals']['Insert']>;
         Relationships: [];
       };
+      cashbox_deposits: {
+        Row: {
+          id: string;
+          user_id: string;
+          cashbox_id: string;
+          amount: number;
+          deposit_date: string;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          cashbox_id: string;
+          amount: number;
+          deposit_date: string;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['cashbox_deposits']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -216,3 +238,4 @@ export type MonthlyActualRow = Database['public']['Tables']['monthly_actuals']['
 export type CategoryRow = Database['public']['Tables']['categories']['Row'];
 export type CashboxRow = Database['public']['Tables']['cashboxes']['Row'];
 export type CashboxWithdrawalRow = Database['public']['Tables']['cashbox_withdrawals']['Row'];
+export type CashboxDepositRow = Database['public']['Tables']['cashbox_deposits']['Row'];
