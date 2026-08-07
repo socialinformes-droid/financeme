@@ -15,16 +15,31 @@ export default async function CashflowPage() {
 
   const currentMonthKey = toISODate(firstDayOfMonth(new Date()));
 
-  const [{ data: cashboxes }, { data: cashboxTxs }, { data: monthTxs }, { data: withdrawals }] =
-    await Promise.all([
-      supabase.from('cashboxes').select('*').order('created_at', { ascending: true }),
-      supabase.from('transactions').select('*').eq('type', 'income').not('cashbox_id', 'is', null),
-      supabase.from('transactions').select('*').eq('expense_month', currentMonthKey),
-      supabase
-        .from('cashbox_withdrawals')
-        .select('*')
-        .order('withdrawal_date', { ascending: false }),
-    ]);
+  const [
+    { data: cashboxes, error: cashboxesError },
+    { data: cashboxTxs, error: cashboxTxsError },
+    { data: monthTxs, error: monthTxsError },
+    { data: withdrawals, error: withdrawalsError },
+  ] = await Promise.all([
+    supabase.from('cashboxes').select('*').order('created_at', { ascending: true }),
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('type', 'income')
+      .not('cashbox_id', 'is', null)
+      .limit(2000),
+    supabase.from('transactions').select('*').eq('expense_month', currentMonthKey),
+    supabase
+      .from('cashbox_withdrawals')
+      .select('*')
+      .order('withdrawal_date', { ascending: false })
+      .limit(2000),
+  ]);
+
+  if (cashboxesError) console.error('[cashflow cashboxes]', cashboxesError);
+  if (cashboxTxsError) console.error('[cashflow cashboxTxs]', cashboxTxsError);
+  if (monthTxsError) console.error('[cashflow monthTxs]', monthTxsError);
+  if (withdrawalsError) console.error('[cashflow withdrawals]', withdrawalsError);
 
   return (
     <CashflowView

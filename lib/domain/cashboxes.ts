@@ -36,7 +36,7 @@ export function calculateMonthlyForecastBalance(
 
 /** Previsto do mês pro caixa = monthly_goal, ou 0 se não definida. */
 export function cashboxMonthlyForecast(cashbox: CashboxLike): number {
-  return cashbox.monthly_goal ?? 0;
+  return Number(cashbox.monthly_goal ?? 0);
 }
 
 /** Real do mês = entradas vinculadas ao caixa no mês, menos retiradas do mesmo mês. */

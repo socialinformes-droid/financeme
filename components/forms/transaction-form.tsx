@@ -361,7 +361,7 @@ export function TransactionForm({
         )}
       </div>
 
-      {type === 'income' && cashboxes.length > 0 && (
+      {type === 'income' && !isRecurring && cashboxes.length > 0 && (
         <div className="space-y-1.5">
           <Label>Caixa (opcional)</Label>
           <Controller

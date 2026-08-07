@@ -192,9 +192,10 @@ export function CashflowView({
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {enriched.map(({ cashbox, forecast, real, balance }) => {
-            const progress = forecast > 0 ? Math.min(100, (real / forecast) * 100) : 0;
+            const progress = forecast > 0 ? Math.max(0, Math.min(100, (real / forecast) * 100)) : 0;
             const totalGoal = Number(cashbox.total_goal ?? 0);
-            const totalProgress = totalGoal > 0 ? Math.min(100, (balance / totalGoal) * 100) : 0;
+            const totalProgress =
+              totalGoal > 0 ? Math.max(0, Math.min(100, (balance / totalGoal) * 100)) : 0;
             return (
               <li key={cashbox.id}>
                 <div

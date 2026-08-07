@@ -89,6 +89,10 @@ describe('cashboxBalance', () => {
     const withdrawals = [withdrawal({ amount: 250 })];
     expect(cashboxBalance('c1', txs, withdrawals)).toBe(-150);
   });
+
+  it('retorna saldo negativo quando há retiradas mas nenhuma entrada', () => {
+    expect(cashboxBalance('c1', [], [withdrawal({ amount: 100 })])).toBe(-100);
+  });
 });
 
 describe('calculateAllocation', () => {
@@ -104,5 +108,9 @@ describe('calculateAllocation', () => {
   it('unallocated fica negativo quando metas somadas excedem o previsto', () => {
     const cashboxes = [{ id: 'c1', monthly_goal: 6000 }];
     expect(calculateAllocation(cashboxes, 5000)).toEqual({ allocated: 6000, unallocated: -1000 });
+  });
+
+  it('sem caixas, tudo fica não alocado', () => {
+    expect(calculateAllocation([], 5000)).toEqual({ allocated: 0, unallocated: 5000 });
   });
 });
