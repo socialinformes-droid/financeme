@@ -19,6 +19,7 @@ import {
   ListChecks,
   ShoppingBag,
   TrendingUp,
+  PiggyBank,
   Settings,
   LogOut,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ const NAV: NavItem[] = [
   { href: '/installments', label: 'Parcelas', icon: ListChecks },
   { href: '/shopping', label: 'Compras', icon: ShoppingBag },
   { href: '/forecast', label: 'Previsão', icon: TrendingUp },
+  { href: '/cashflow', label: 'Fluxo de caixa', icon: PiggyBank },
   { href: '/settings', label: 'Edição', icon: Settings },
 ];
 
