@@ -32,7 +32,6 @@ const schema = z.object({
   category: z.string().min(1),
   transaction_date: z.string().min(1),
   card_id: z.string().optional(),
-  cashbox_id: z.string().optional(),
   notes: z.string().optional(),
   is_recurring: z.boolean(),
   is_paid: z.boolean(),
@@ -48,8 +47,6 @@ export type TransactionFormProps = {
   cards: CardRow[];
   /** Categorias do user (do DB). Se vazio/omitido, usa DEFAULT_CATEGORIES. */
   categories?: ReadonlyArray<{ name: string }>;
-  /** Caixas do user (do DB), pra vincular entradas a uma meta. */
-  cashboxes?: ReadonlyArray<{ id: string; name: string }>;
   onDone?: () => void;
   /** Quando passado, o formulário vira modo edit e faz UPDATE em vez de INSERT. */
   editing?: TransactionRow | null;
@@ -61,7 +58,6 @@ export function TransactionForm({
   userId,
   cards,
   categories,
-  cashboxes = [],
   onDone,
   editing,
   onEditGroup,
@@ -83,7 +79,6 @@ export function TransactionForm({
           category: editing.category,
           transaction_date: editing.transaction_date,
           card_id: editing.card_id ?? undefined,
-          cashbox_id: editing.cashbox_id ?? undefined,
           notes: editing.notes ?? '',
           is_recurring: editing.is_recurring,
           is_paid: editing.is_paid,
@@ -159,7 +154,6 @@ export function TransactionForm({
             expense_month: expenseMonth,
             billing_month: billingMonth,
             card_id: values.card_id ?? null,
-            cashbox_id: values.type === 'income' ? (values.cashbox_id ?? null) : null,
             is_recurring: values.is_recurring,
             is_paid: values.is_paid,
             transaction_date: values.transaction_date,
@@ -218,7 +212,6 @@ export function TransactionForm({
           expense_month: expenseMonth,
           billing_month: billingMonth,
           card_id: values.card_id ?? null,
-          cashbox_id: values.type === 'income' ? (values.cashbox_id ?? null) : null,
           is_recurring: values.is_recurring,
           is_paid: values.is_paid,
           transaction_date: values.transaction_date,
@@ -360,30 +353,6 @@ export function TransactionForm({
           </div>
         )}
       </div>
-
-      {type === 'income' && !isRecurring && cashboxes.length > 0 && (
-        <div className="space-y-1.5">
-          <Label>Caixa (opcional)</Label>
-          <Controller
-            name="cashbox_id"
-            control={form.control}
-            render={({ field }) => (
-              <Select
-                value={field.value ?? '__none'}
-                onValueChange={(v) => field.onChange(v === '__none' ? undefined : v)}
-              >
-                <SelectTrigger className="w-full"><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Nenhum</SelectItem>
-                  {cashboxes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="notes">Observações</Label>
