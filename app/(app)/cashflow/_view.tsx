@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, PiggyBank } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { formatBRL } from '@/lib/format';
+import { formatBRL, formatBRLSigned, formatDateBR } from '@/lib/format';
 import {
   calculateMonthlyForecastBalance,
   calculateAllocation,
@@ -25,6 +25,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { CashboxForm } from '@/components/forms/cashbox-form';
+import { CashboxWithdrawalForm } from '@/components/forms/cashbox-withdrawal-form';
 import type { CashboxRow, CashboxWithdrawalRow, TransactionRow } from '@/lib/supabase/types';
 
 export function CashflowView({
@@ -46,6 +47,8 @@ export function CashflowView({
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CashboxRow | null>(null);
+  const [selected, setSelected] = useState<CashboxRow | null>(null);
+  const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -67,6 +70,29 @@ export function CashflowView({
       balance: cashboxBalance(c.id, cashboxTransactions, withdrawals),
     }));
   }, [cashboxes, currentMonthKey, cashboxTransactions, withdrawals]);
+
+  const selectedHistory = useMemo(() => {
+    if (!selected) return [];
+    const incomeEntries = cashboxTransactions
+      .filter((t) => t.cashbox_id === selected.id)
+      .map((t) => ({
+        id: t.id,
+        date: t.transaction_date,
+        amount: Number(t.amount),
+        label: t.description,
+        kind: 'income' as const,
+      }));
+    const withdrawalEntries = withdrawals
+      .filter((w) => w.cashbox_id === selected.id)
+      .map((w) => ({
+        id: w.id,
+        date: w.withdrawal_date,
+        amount: -Number(w.amount),
+        label: w.note?.trim() || 'Retirada',
+        kind: 'withdrawal' as const,
+      }));
+    return [...incomeEntries, ...withdrawalEntries].sort((a, b) => b.date.localeCompare(a.date));
+  }, [selected, cashboxTransactions, withdrawals]);
 
   const remove = async (c: CashboxRow) => {
     if (
@@ -171,7 +197,10 @@ export function CashflowView({
             const totalProgress = totalGoal > 0 ? Math.min(100, (balance / totalGoal) * 100) : 0;
             return (
               <li key={cashbox.id}>
-                <div className="rounded-lg border border-rule/60 bg-card overflow-hidden px-5 py-5 space-y-3">
+                <div
+                  className="rounded-lg border border-rule/60 bg-card overflow-hidden px-5 py-5 space-y-3 cursor-pointer hover:border-foreground/30 transition-colors"
+                  onClick={() => setSelected(cashbox)}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-display text-2xl tracking-tight">{cashbox.name}</h3>
@@ -191,7 +220,10 @@ export function CashflowView({
                         size="icon-sm"
                         variant="ghost"
                         title="Editar"
-                        onClick={() => setEditing(cashbox)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditing(cashbox);
+                        }}
                         disabled={pending}
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -200,7 +232,10 @@ export function CashflowView({
                         size="icon-sm"
                         variant="ghost"
                         title="Excluir"
-                        onClick={() => remove(cashbox)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(cashbox);
+                        }}
                         disabled={pending}
                         className="text-money-down hover:text-money-down"
                       >
@@ -238,6 +273,67 @@ export function CashflowView({
           })}
         </ul>
       )}
+
+      <Sheet
+        open={!!selected}
+        onOpenChange={(o) => {
+          if (!o) {
+            setSelected(null);
+            setShowWithdrawalForm(false);
+          }
+        }}
+      >
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{selected?.name}</SheetTitle>
+            <SheetDescription>Histórico de entradas e retiradas deste caixa.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 px-4 pb-4 space-y-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowWithdrawalForm((v) => !v)}
+            >
+              {showWithdrawalForm ? 'Cancelar' : 'Registrar retirada'}
+            </Button>
+
+            {showWithdrawalForm && selected && (
+              <CashboxWithdrawalForm
+                userId={userId}
+                cashboxId={selected.id}
+                onDone={() => {
+                  setShowWithdrawalForm(false);
+                  refresh();
+                }}
+              />
+            )}
+
+            {selectedHistory.length === 0 ? (
+              <p className="text-sm italic text-muted-foreground text-center py-6">
+                Nenhuma movimentação ainda.
+              </p>
+            ) : (
+              <ul className="divide-y divide-rule/40">
+                {selectedHistory.map((entry) => (
+                  <li key={`${entry.kind}-${entry.id}`} className="flex items-center justify-between py-2.5 text-sm">
+                    <div>
+                      <p className="font-medium">{entry.label}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateBR(entry.date)}</p>
+                    </div>
+                    <span
+                      className={`font-mono tabular-nums ${
+                        entry.amount >= 0 ? 'text-money-up' : 'text-money-down'
+                      }`}
+                    >
+                      {formatBRLSigned(entry.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
