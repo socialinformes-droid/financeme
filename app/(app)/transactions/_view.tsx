@@ -49,7 +49,7 @@ import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
 import type { GroupRow } from '@/lib/domain/installments';
-import type { TransactionRow, CardRow, CategoryRow, CashboxRow } from '@/lib/supabase/types';
+import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
 type SelectOption = { value: string; label: string };
 
@@ -205,14 +205,12 @@ export function TransactionsView({
   initialTransactions,
   cards,
   categories,
-  cashboxes,
   year,
 }: {
   userId: string;
   initialTransactions: TransactionRow[];
   cards: CardRow[];
   categories: CategoryRow[];
-  cashboxes: CashboxRow[];
   year: number;
 }) {
   const categoryNames = categories.length
@@ -413,7 +411,6 @@ export function TransactionsView({
                   userId={userId}
                   cards={cards}
                   categories={categories}
-                  cashboxes={cashboxes}
                   editing={editing}
                   onDone={() => {
                     setOpen(false);
