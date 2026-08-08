@@ -1,7 +1,12 @@
 // app/(app)/cashflow/page.tsx
 import { createClient } from '@/lib/supabase/server';
 import { firstDayOfMonth, toISODate } from '@/lib/format';
-import type { CashboxRow, CashboxWithdrawalRow, TransactionRow } from '@/lib/supabase/types';
+import type {
+  CashboxRow,
+  CashboxDepositRow,
+  CashboxWithdrawalRow,
+  TransactionRow,
+} from '@/lib/supabase/types';
 import { CashflowView } from './_view';
 
 export const dynamic = 'force-dynamic';
@@ -17,16 +22,15 @@ export default async function CashflowPage() {
 
   const [
     { data: cashboxes, error: cashboxesError },
-    { data: cashboxTxs, error: cashboxTxsError },
+    { data: deposits, error: depositsError },
     { data: monthTxs, error: monthTxsError },
     { data: withdrawals, error: withdrawalsError },
   ] = await Promise.all([
     supabase.from('cashboxes').select('*').order('created_at', { ascending: true }),
     supabase
-      .from('transactions')
+      .from('cashbox_deposits')
       .select('*')
-      .eq('type', 'income')
-      .not('cashbox_id', 'is', null)
+      .order('deposit_date', { ascending: false })
       .limit(2000),
     supabase.from('transactions').select('*').eq('expense_month', currentMonthKey),
     supabase
@@ -37,7 +41,7 @@ export default async function CashflowPage() {
   ]);
 
   if (cashboxesError) console.error('[cashflow cashboxes]', cashboxesError);
-  if (cashboxTxsError) console.error('[cashflow cashboxTxs]', cashboxTxsError);
+  if (depositsError) console.error('[cashflow deposits]', depositsError);
   if (monthTxsError) console.error('[cashflow monthTxs]', monthTxsError);
   if (withdrawalsError) console.error('[cashflow withdrawals]', withdrawalsError);
 
@@ -46,7 +50,7 @@ export default async function CashflowPage() {
       userId={user.id}
       currentMonthKey={currentMonthKey}
       cashboxes={(cashboxes ?? []) as CashboxRow[]}
-      cashboxTransactions={(cashboxTxs ?? []) as TransactionRow[]}
+      deposits={(deposits ?? []) as CashboxDepositRow[]}
       monthTransactions={(monthTxs ?? []) as TransactionRow[]}
       withdrawals={(withdrawals ?? []) as CashboxWithdrawalRow[]}
     />

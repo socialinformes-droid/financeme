@@ -5,16 +5,17 @@ export type CashboxLike = {
   monthly_goal: number | null;
 };
 
+export type CashboxDepositLike = {
+  cashbox_id: string;
+  amount: number;
+  deposit_date: string;
+};
+
 export type CashboxWithdrawalLike = {
   cashbox_id: string;
   amount: number;
   withdrawal_date: string;
 };
-
-export type CashboxTransactionLike = Pick<
-  TransactionRow,
-  'cashbox_id' | 'type' | 'amount' | 'expense_month'
->;
 
 /**
  * Saldo previsto do mês = entradas - saídas de transações cujo expense_month
@@ -39,38 +40,36 @@ export function cashboxMonthlyForecast(cashbox: CashboxLike): number {
   return Number(cashbox.monthly_goal ?? 0);
 }
 
-/** Real do mês = entradas vinculadas ao caixa no mês, menos retiradas do mesmo mês. */
+/** Real do mês = depósitos no caixa no mês, menos retiradas do mesmo mês. */
 export function cashboxRealMonth(
   cashboxId: string,
   monthKey: string,
-  transactions: CashboxTransactionLike[],
+  deposits: CashboxDepositLike[],
   withdrawals: CashboxWithdrawalLike[],
 ): number {
-  const income = transactions
-    .filter(
-      (t) => t.cashbox_id === cashboxId && t.type === 'income' && t.expense_month === monthKey,
-    )
-    .reduce((a, t) => a + Number(t.amount), 0);
   const monthPrefix = monthKey.slice(0, 7);
+  const deposited = deposits
+    .filter((d) => d.cashbox_id === cashboxId && d.deposit_date.slice(0, 7) === monthPrefix)
+    .reduce((a, d) => a + Number(d.amount), 0);
   const withdrawn = withdrawals
     .filter((w) => w.cashbox_id === cashboxId && w.withdrawal_date.slice(0, 7) === monthPrefix)
     .reduce((a, w) => a + Number(w.amount), 0);
-  return income - withdrawn;
+  return deposited - withdrawn;
 }
 
-/** Saldo acumulado (histórico total) = entradas - retiradas. Pode ser negativo. */
+/** Saldo acumulado (histórico total) = depósitos - retiradas. Pode ser negativo. */
 export function cashboxBalance(
   cashboxId: string,
-  transactions: CashboxTransactionLike[],
+  deposits: CashboxDepositLike[],
   withdrawals: CashboxWithdrawalLike[],
 ): number {
-  const income = transactions
-    .filter((t) => t.cashbox_id === cashboxId && t.type === 'income')
-    .reduce((a, t) => a + Number(t.amount), 0);
+  const deposited = deposits
+    .filter((d) => d.cashbox_id === cashboxId)
+    .reduce((a, d) => a + Number(d.amount), 0);
   const withdrawn = withdrawals
     .filter((w) => w.cashbox_id === cashboxId)
     .reduce((a, w) => a + Number(w.amount), 0);
-  return income - withdrawn;
+  return deposited - withdrawn;
 }
 
 export type AllocationSummary = { allocated: number; unallocated: number };

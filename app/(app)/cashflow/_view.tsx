@@ -25,21 +25,27 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { CashboxForm } from '@/components/forms/cashbox-form';
+import { CashboxDepositForm } from '@/components/forms/cashbox-deposit-form';
 import { CashboxWithdrawalForm } from '@/components/forms/cashbox-withdrawal-form';
-import type { CashboxRow, CashboxWithdrawalRow, TransactionRow } from '@/lib/supabase/types';
+import type {
+  CashboxRow,
+  CashboxDepositRow,
+  CashboxWithdrawalRow,
+  TransactionRow,
+} from '@/lib/supabase/types';
 
 export function CashflowView({
   userId,
   currentMonthKey,
   cashboxes,
-  cashboxTransactions,
+  deposits,
   monthTransactions,
   withdrawals,
 }: {
   userId: string;
   currentMonthKey: string;
   cashboxes: CashboxRow[];
-  cashboxTransactions: TransactionRow[];
+  deposits: CashboxDepositRow[];
   monthTransactions: TransactionRow[];
   withdrawals: CashboxWithdrawalRow[];
 }) {
@@ -48,6 +54,7 @@ export function CashflowView({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CashboxRow | null>(null);
   const [selected, setSelected] = useState<CashboxRow | null>(null);
+  const [showDepositForm, setShowDepositForm] = useState(false);
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
 
   const refresh = () => startTransition(() => router.refresh());
@@ -66,21 +73,21 @@ export function CashflowView({
     return cashboxes.map((c) => ({
       cashbox: c,
       forecast: cashboxMonthlyForecast(c),
-      real: cashboxRealMonth(c.id, currentMonthKey, cashboxTransactions, withdrawals),
-      balance: cashboxBalance(c.id, cashboxTransactions, withdrawals),
+      real: cashboxRealMonth(c.id, currentMonthKey, deposits, withdrawals),
+      balance: cashboxBalance(c.id, deposits, withdrawals),
     }));
-  }, [cashboxes, currentMonthKey, cashboxTransactions, withdrawals]);
+  }, [cashboxes, currentMonthKey, deposits, withdrawals]);
 
   const selectedHistory = useMemo(() => {
     if (!selected) return [];
-    const incomeEntries = cashboxTransactions
-      .filter((t) => t.cashbox_id === selected.id)
-      .map((t) => ({
-        id: t.id,
-        date: t.transaction_date,
-        amount: Number(t.amount),
-        label: t.description,
-        kind: 'income' as const,
+    const depositEntries = deposits
+      .filter((d) => d.cashbox_id === selected.id)
+      .map((d) => ({
+        id: d.id,
+        date: d.deposit_date,
+        amount: Number(d.amount),
+        label: d.note?.trim() || 'Entrada',
+        kind: 'deposit' as const,
       }));
     const withdrawalEntries = withdrawals
       .filter((w) => w.cashbox_id === selected.id)
@@ -91,13 +98,13 @@ export function CashflowView({
         label: w.note?.trim() || 'Retirada',
         kind: 'withdrawal' as const,
       }));
-    return [...incomeEntries, ...withdrawalEntries].sort((a, b) => b.date.localeCompare(a.date));
-  }, [selected, cashboxTransactions, withdrawals]);
+    return [...depositEntries, ...withdrawalEntries].sort((a, b) => b.date.localeCompare(a.date));
+  }, [selected, deposits, withdrawals]);
 
   const remove = async (c: CashboxRow) => {
     if (
       !confirm(
-        `Excluir "${c.name}"? As entradas já lançadas ficam no banco mas perdem o vínculo com este caixa.`,
+        `Excluir "${c.name}"? O histórico de entradas e retiradas deste caixa será apagado junto.`,
       )
     )
       return;
@@ -280,6 +287,7 @@ export function CashflowView({
         onOpenChange={(o) => {
           if (!o) {
             setSelected(null);
+            setShowDepositForm(false);
             setShowWithdrawalForm(false);
           }
         }}
@@ -290,13 +298,37 @@ export function CashflowView({
             <SheetDescription>Histórico de entradas e retiradas deste caixa.</SheetDescription>
           </SheetHeader>
           <div className="mt-4 px-4 pb-4 space-y-4">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setShowWithdrawalForm((v) => !v)}
-            >
-              {showWithdrawalForm ? 'Cancelar' : 'Registrar retirada'}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDepositForm((v) => !v);
+                  setShowWithdrawalForm(false);
+                }}
+              >
+                {showDepositForm ? 'Cancelar' : 'Registrar entrada'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowWithdrawalForm((v) => !v);
+                  setShowDepositForm(false);
+                }}
+              >
+                {showWithdrawalForm ? 'Cancelar' : 'Registrar retirada'}
+              </Button>
+            </div>
+
+            {showDepositForm && selected && (
+              <CashboxDepositForm
+                userId={userId}
+                cashboxId={selected.id}
+                onDone={() => {
+                  setShowDepositForm(false);
+                  refresh();
+                }}
+              />
+            )}
 
             {showWithdrawalForm && selected && (
               <CashboxWithdrawalForm

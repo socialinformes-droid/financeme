@@ -5,7 +5,7 @@ import {
   cashboxRealMonth,
   cashboxBalance,
   calculateAllocation,
-  type CashboxTransactionLike,
+  type CashboxDepositLike,
   type CashboxWithdrawalLike,
 } from './cashboxes';
 
@@ -34,12 +34,11 @@ describe('cashboxMonthlyForecast', () => {
   });
 });
 
-function tx(over: Partial<CashboxTransactionLike>): CashboxTransactionLike {
+function deposit(over: Partial<CashboxDepositLike>): CashboxDepositLike {
   return {
     cashbox_id: 'c1',
-    type: 'income',
     amount: 100,
-    expense_month: '2026-08-01',
+    deposit_date: '2026-08-01',
     ...over,
   };
 }
@@ -54,43 +53,42 @@ function withdrawal(over: Partial<CashboxWithdrawalLike>): CashboxWithdrawalLike
 }
 
 describe('cashboxRealMonth', () => {
-  it('soma entradas do mês vinculadas ao caixa, menos retiradas do mesmo mês', () => {
-    const txs = [
-      tx({ amount: 300, expense_month: '2026-08-01' }),
-      tx({ amount: 200, expense_month: '2026-07-01' }), // outro mês
-      tx({ cashbox_id: 'c2', amount: 999, expense_month: '2026-08-01' }), // outro caixa
-      tx({ type: 'expense', amount: -50, expense_month: '2026-08-01' }), // despesa: nunca conta
+  it('soma depósitos do mês vinculados ao caixa, menos retiradas do mesmo mês', () => {
+    const deposits = [
+      deposit({ amount: 300, deposit_date: '2026-08-20' }),
+      deposit({ amount: 200, deposit_date: '2026-07-01' }), // outro mês
+      deposit({ cashbox_id: 'c2', amount: 999, deposit_date: '2026-08-01' }), // outro caixa
     ];
     const withdrawals = [
       withdrawal({ amount: 100, withdrawal_date: '2026-08-15' }),
       withdrawal({ amount: 40, withdrawal_date: '2026-07-15' }), // outro mês
     ];
-    expect(cashboxRealMonth('c1', '2026-08-01', txs, withdrawals)).toBe(200); // 300 - 100
+    expect(cashboxRealMonth('c1', '2026-08-01', deposits, withdrawals)).toBe(200); // 300 - 100
   });
 
-  it('retorna 0 sem entradas nem retiradas', () => {
+  it('retorna 0 sem depósitos nem retiradas', () => {
     expect(cashboxRealMonth('c1', '2026-08-01', [], [])).toBe(0);
   });
 });
 
 describe('cashboxBalance', () => {
-  it('soma entradas históricas menos retiradas históricas', () => {
-    const txs = [
-      tx({ amount: 300, expense_month: '2026-06-01' }),
-      tx({ amount: 200, expense_month: '2026-08-01' }),
-      tx({ cashbox_id: 'c2', amount: 999, expense_month: '2026-08-01' }),
+  it('soma depósitos históricos menos retiradas históricas', () => {
+    const deposits = [
+      deposit({ amount: 300, deposit_date: '2026-06-01' }),
+      deposit({ amount: 200, deposit_date: '2026-08-01' }),
+      deposit({ cashbox_id: 'c2', amount: 999, deposit_date: '2026-08-01' }),
     ];
     const withdrawals = [withdrawal({ amount: 700, withdrawal_date: '2026-08-15' })];
-    expect(cashboxBalance('c1', txs, withdrawals)).toBe(-200); // 500 - 700
+    expect(cashboxBalance('c1', deposits, withdrawals)).toBe(-200); // 500 - 700
   });
 
-  it('permite saldo negativo quando retirada > entradas', () => {
-    const txs = [tx({ amount: 100 })];
+  it('permite saldo negativo quando retirada > depósitos', () => {
+    const deposits = [deposit({ amount: 100 })];
     const withdrawals = [withdrawal({ amount: 250 })];
-    expect(cashboxBalance('c1', txs, withdrawals)).toBe(-150);
+    expect(cashboxBalance('c1', deposits, withdrawals)).toBe(-150);
   });
 
-  it('retorna saldo negativo quando há retiradas mas nenhuma entrada', () => {
+  it('retorna saldo negativo quando há retiradas mas nenhum depósito', () => {
     expect(cashboxBalance('c1', [], [withdrawal({ amount: 100 })])).toBe(-100);
   });
 });
