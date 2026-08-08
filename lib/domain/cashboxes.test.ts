@@ -55,7 +55,7 @@ function withdrawal(over: Partial<CashboxWithdrawalLike>): CashboxWithdrawalLike
 describe('cashboxRealMonth', () => {
   it('soma depósitos do mês vinculados ao caixa, menos retiradas do mesmo mês', () => {
     const deposits = [
-      deposit({ amount: 300, deposit_date: '2026-08-01' }),
+      deposit({ amount: 300, deposit_date: '2026-08-20' }),
       deposit({ amount: 200, deposit_date: '2026-07-01' }), // outro mês
       deposit({ cashbox_id: 'c2', amount: 999, deposit_date: '2026-08-01' }), // outro caixa
     ];
