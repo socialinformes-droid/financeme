@@ -111,7 +111,7 @@ export function CardForm({ userId, editing, onDone }: CardFormProps) {
           type="number"
           step="0.01"
           min="0"
-          value={limitAmount || ''}
+          value={String(limitAmount)}
           onChange={(e) => setLimitAmount(Number(e.target.value) || 0)}
           placeholder="0,00 (opcional)"
         />

@@ -325,7 +325,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
               type="number"
               step="0.01"
               min="0"
-              value={defaultAmount || ''}
+              value={String(defaultAmount)}
               onChange={(e) => setDefaultAmount(Number(e.target.value) || 0)}
               placeholder="0,00"
             />
@@ -374,7 +374,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
                     type="number"
                     step="0.01"
                     min="0"
-                    value={r.amount || ''}
+                    value={String(r.amount)}
                     onChange={(e) => setAmountAt(i, Number(e.target.value) || 0)}
                     placeholder="—"
                     className="flex-1 h-7 text-sm font-mono"

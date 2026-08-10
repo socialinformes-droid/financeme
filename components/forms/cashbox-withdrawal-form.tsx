@@ -67,7 +67,7 @@ export function CashboxWithdrawalForm({
             type="number"
             step="0.01"
             min="0.01"
-            value={amount || ''}
+            value={String(amount)}
             onChange={(e) => setAmount(Number(e.target.value) || 0)}
           />
         </div>

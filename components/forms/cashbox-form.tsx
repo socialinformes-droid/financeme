@@ -74,7 +74,7 @@ export function CashboxForm({ userId, editing, onDone }: CashboxFormProps) {
             type="number"
             step="0.01"
             min="0"
-            value={monthlyGoal || ''}
+            value={String(monthlyGoal)}
             onChange={(e) => setMonthlyGoal(Number(e.target.value) || 0)}
             placeholder="0,00 (opcional)"
           />
@@ -85,7 +85,7 @@ export function CashboxForm({ userId, editing, onDone }: CashboxFormProps) {
             type="number"
             step="0.01"
             min="0"
-            value={totalGoal || ''}
+            value={String(totalGoal)}
             onChange={(e) => setTotalGoal(Number(e.target.value) || 0)}
             placeholder="0,00 (opcional)"
           />

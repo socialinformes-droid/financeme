@@ -141,7 +141,7 @@ export function ShoppingForm({ userId, editing, onDone }: ShoppingFormProps) {
             type="number"
             step="0.01"
             min="0"
-            value={state.price_min || ''}
+            value={String(state.price_min)}
             onChange={(e) => set('price_min', Number(e.target.value) || 0)}
           />
         </div>
@@ -151,7 +151,7 @@ export function ShoppingForm({ userId, editing, onDone }: ShoppingFormProps) {
             type="number"
             step="0.01"
             min="0"
-            value={state.price_max || ''}
+            value={String(state.price_max)}
             onChange={(e) => set('price_max', Number(e.target.value) || 0)}
           />
         </div>
