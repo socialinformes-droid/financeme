@@ -51,7 +51,6 @@ export default async function Dashboard({
       .select('month,balance')
       .gte('month', startOfYear)
       .lt('month', endOfYear),
-    supabase.from('cards').select('*'),
     // Qualquer lançamento cuja fatura (billing_month) cai neste ano, mesmo que
     // expense_month seja de outro ano — cobre tanto parcelamentos longos quanto
     // uma compra avulsa no crédito perto do fechamento (ex: compra em dez/26
@@ -62,11 +61,15 @@ export default async function Dashboard({
       .select('*')
       .gte('billing_month', startOfYear)
       .lt('billing_month', endOfYear),
+    supabase
+      .from('cards')
+      .select('*'),
   ]);
 
   if (txError) console.error('[dashboard tx]', txError);
   if (actualsError) console.error('[dashboard actuals]', actualsError);
   if (billedError) console.error('[dashboard billed]', billedError);
+  if (cardsError) console.error('[dashboard cards]', cardsError);
   // Set de competência (expense_month) — usado pra "mês atual" / "acumulado do ano" / gráficos,
   // que representam movimentação financeira no ano por data de compra, não de fatura.
   const txs = (allTxs ?? []) as TransactionRow[];

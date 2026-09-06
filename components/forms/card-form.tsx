@@ -61,6 +61,8 @@ export function CardForm({ userId, editing, onDone }: CardFormProps) {
         closing_day: closingDay,
         due_day: dueDay,
         color,
+        bill_amount: null,
+        bill_due_date: null,
       };
       if (isEdit && editing) {
         const { error } = await supabase.from('cards').update(payload).eq('id', editing.id);
