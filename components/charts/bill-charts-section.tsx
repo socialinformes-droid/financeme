@@ -74,46 +74,54 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   const totalAll = totalBill + totalManual;
 
   const ChartContainer = ({ title, data, amount }: any) => (
-    <Card className="flex flex-col">
+    <Card>
       <CardHeader>
         <CardTitle className="text-lg">{title}</CardTitle>
         <p className="text-2xl font-bold text-accent mt-2">
           {amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </CardHeader>
-      <CardContent className="flex-1 flex items-center justify-center">
+      <CardContent>
         {data.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
+          <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
             Nenhum dado disponível
-          </p>
+          </div>
         ) : (
-          <ResponsiveContainer width="100%" height={350}>
-            <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {data.map((_: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value) =>
-                  (value as number).toLocaleString('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  })
-                }
-              />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={48}
+                  outerRadius={86}
+                  paddingAngle={2}
+                  stroke="oklch(0.992 0.005 90)"
+                  strokeWidth={2}
+                >
+                  {data.map((d: any, index: number) => (
+                    <Cell key={d.name} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'oklch(0.992 0.005 90)',
+                    border: '1px solid oklch(0.86 0.012 82)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  formatter={(value) =>
+                    (value as number).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })
+                  }
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
     </Card>
