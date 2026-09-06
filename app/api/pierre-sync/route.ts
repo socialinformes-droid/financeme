@@ -1,118 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { mapMerchantToCategory } from './merchant-mapper';
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-
-    // Verificar autenticação
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const {
-      amount,
-      merchant,
-      transaction_date,
-      external_id,
-      description,
-      card_name,
-    } = body;
-
-    // Validar campos obrigatórios
-    if (!amount || !merchant || !transaction_date) {
-      return NextResponse.json(
-        { error: 'Missing required fields: amount, merchant, transaction_date' },
-        { status: 400 }
-      );
-    }
-
-    // Mapear categoria automaticamente
-    const category = mapMerchantToCategory(merchant);
-
-    // Verificar se já existe transação com esse external_id (evitar duplicata)
-    if (external_id) {
-      const { data: existing } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('description', `[Pierre] ${merchant}`)
-        .eq('transaction_date', transaction_date)
-        .eq('amount', amount)
-        .single();
-
-      if (existing) {
-        return NextResponse.json(
-          { success: true, skipped: true, message: 'Transaction already exists' },
-          { status: 200 }
-        );
-      }
-    }
-
-    // Encontrar o cartão por nome (se fornecido)
-    let card_id: string | null = null;
-    if (card_name) {
-      const { data: card } = await supabase
-        .from('cards')
-        .select('id')
-        .eq('user_id', user.id)
-        .ilike('name', card_name)
-        .single();
-
-      card_id = card?.id ?? null;
-    }
-
-    // Inserir transação
-    const { data: transaction, error } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: user.id,
-        description: `[Pierre] ${merchant}`,
-        amount,
-        type: 'expense',
-        payment_method: 'credit',
-        category,
-        transaction_date,
-        card_id,
-        is_paid: false,
-        is_recurring: false,
-        is_installment: false,
-        notes: description ? `Auto-sync from Pierre: ${description}` : 'Auto-sync from Pierre API',
-      })
-      .select();
-
-    if (error) {
-      console.error('Supabase insert error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        transaction: transaction?.[0],
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+/**
+ * ⚠️ IMPORTANTE: Esta integração sincroniza APENAS faturas de cartão
+ * NÃO sincroniza transações individuais para evitar:
+ * - Duplicação com transações recorrentes mapeadas manualmente
+ * - Confusão entre fatura (promissória) e transações reais
+ *
+ * Fluxo:
+ * 1. Busca faturas em aberto de cada cartão (Pierre)
+ * 2. Atualiza bill_amount + bill_due_date na tabela cards
+ * 3. Dashboard mostra 3 gráficos: Cartão | Débito/PIX | Total
+ */
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Verificar autenticação
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -121,18 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parâmetro manual=true para sincronização manual
-    const manual = request.nextUrl.searchParams.get('manual') === 'true';
-    const days = parseInt(request.nextUrl.searchParams.get('days') ?? '7', 10);
-
-    if (!manual) {
-      return NextResponse.json(
-        { error: 'Use POST for webhook or ?manual=true for manual sync' },
-        { status: 400 }
-      );
-    }
-
-    // Sincronizar com Pierre
+    // Sincronizar faturas
     const { PierreClient } = await import('./pierre-client');
     const apiKey = process.env.PIERRE_API_KEY;
 
@@ -156,53 +49,61 @@ export async function GET(request: NextRequest) {
     // Force update dos dados
     await client.manualUpdate();
 
-    // Buscar transações recentes
-    const transactions = await client.getRecentTransactions(days);
+    // Buscar faturas de todos os cartões
+    const bills = await client.getAllBills();
 
-    if (transactions.length === 0) {
+    if (bills.length === 0) {
       return NextResponse.json({
         success: true,
-        synced: 0,
-        message: 'No new transactions found',
+        updated: 0,
+        message: 'No bills found',
         lastSync: new Date().toISOString(),
       });
     }
 
-    // Inserir transações no Supabase
-    let synced = 0;
-    const errors: Array<{ transaction: string; error: string }> = [];
+    // Atualizar faturas na tabela cards
+    let updated = 0;
+    const errors: Array<{ card: string; error: string }> = [];
 
-    for (const tx of transactions) {
+    for (const bill of bills) {
       try {
-        const { error } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: user.id,
-            description: `[Pierre] ${tx.merchant}`,
-            amount: tx.amount,
-            type: 'expense',
-            payment_method: 'credit',
-            category: mapMerchantToCategory(tx.merchant),
-            transaction_date: tx.date,
-            is_paid: false,
-            is_recurring: false,
-            is_installment: false,
-            notes: tx.description
-              ? `Auto-sync from Pierre: ${tx.description}`
-              : 'Auto-sync from Pierre API',
+        // Encontrar cartão pelo nome da conta (Nubank, Inter, etc)
+        const { data: card } = await supabase
+          .from('cards')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('name', `%${bill.accountName}%`)
+          .single();
+
+        if (!card) {
+          errors.push({
+            card: bill.accountName,
+            error: `Card not found for account "${bill.accountName}"`,
           });
+          continue;
+        }
+
+        // Atualizar fatura do cartão
+        const { error } = await supabase
+          .from('cards')
+          .update({
+            bill_amount: bill.amount,
+            bill_due_date: bill.dueDate,
+            bill_updated_at: new Date().toISOString(),
+          })
+          .eq('id', card.id);
 
         if (!error) {
-          synced++;
+          updated++;
         } else {
           errors.push({
-            transaction: `${tx.merchant} - ${tx.amount}`,
+            card: bill.accountName,
             error: error.message,
           });
         }
       } catch (error) {
         errors.push({
-          transaction: `${tx.merchant} - ${tx.amount}`,
+          card: bill.accountName,
           error: String(error),
         });
       }
@@ -210,14 +111,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      synced,
-      total: transactions.length,
-      skipped: transactions.length - synced,
+      updated,
+      total: bills.length,
+      skipped: bills.length - updated,
       errors: errors.length > 0 ? errors : undefined,
       lastSync: new Date().toISOString(),
+      note: '✅ Sincronizando APENAS faturas (não transações) para evitar duplicação',
     });
   } catch (error) {
-    console.error('Manual sync error:', error);
+    console.error('Sync error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: String(error) },
       { status: 500 }

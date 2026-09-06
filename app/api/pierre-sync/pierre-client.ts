@@ -1,6 +1,6 @@
 /**
  * Cliente MCP para Pierre Finance
- * Usa JSON-RPC 2.0 com SSE para comunicação
+ * Sincroniza APENAS faturas do cartão (não transações individuais)
  */
 
 interface MCPRequest {
@@ -20,12 +20,12 @@ interface MCPToolCall {
   };
 }
 
-interface ParsedTransaction {
-  merchant: string;
+interface CardBill {
+  accountName: string;
+  accountId: string;
   amount: number;
-  date: string;
-  description?: string;
-  cardName?: string;
+  dueDate: string;
+  closingDate?: string;
 }
 
 export class PierreClient {
@@ -70,45 +70,10 @@ export class PierreClient {
   }
 
   /**
-   * Busca extrato bancário dos últimos N dias
+   * Busca faturas em aberto de todos os cartões
+   * ⚠️ NÃO sincroniza transações individuais para evitar duplicação
    */
-  async getRecentTransactions(days: number = 30): Promise<ParsedTransaction[]> {
-    const now = new Date();
-    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    const payload: MCPToolCall = {
-      jsonrpc: '2.0',
-      id: this.requestId++,
-      method: 'tools/call',
-      params: {
-        name: 'getBankStatement',
-        arguments: {
-          startDate: this.formatDate(startDate),
-          endDate: this.formatDate(now),
-          statementScope: 'complete',
-          groupBy: 'statement',
-          topTransactionsLimit: 50,
-        },
-      },
-    };
-
-    try {
-      const response = await this.makeRequest(payload) as any;
-      return this.parseTransactions(response);
-    } catch (error) {
-      console.error('Failed to get transactions from Pierre:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Busca fatura atual (saldo em aberto do cartão)
-   */
-  async getCurrentBill(): Promise<{
-    total: number;
-    dueDate: string;
-    accounts: Array<{ name: string; amount: number }>;
-  } | null> {
+  async getAllBills(): Promise<CardBill[]> {
     const payload: MCPToolCall = {
       jsonrpc: '2.0',
       id: this.requestId++,
@@ -116,19 +81,20 @@ export class PierreClient {
       params: {
         name: 'getBill',
         arguments: {
-          // Sem month = fatura atual em aberto
+          // Sem month = busca fatura em aberto atual
         },
       },
     };
 
     try {
       const response = await this.makeRequest(payload) as any;
-      return this.parseBill(response);
+      return this.parseBills(response);
     } catch (error) {
-      console.error('Failed to get bill from Pierre:', error);
-      return null;
+      console.error('Failed to get bills from Pierre:', error);
+      return [];
     }
   }
+
 
   /**
    * Sincroniza contas (força atualização dos dados)
@@ -145,7 +111,7 @@ export class PierreClient {
     };
 
     try {
-      await this.makeRequest(payload);
+      await (this.makeRequest(payload) as Promise<any>);
       return true;
     } catch (error) {
       console.error('Failed to update Pierre data:', error);
@@ -204,81 +170,39 @@ export class PierreClient {
   }
 
   /**
-   * Parse transações do response da Pierre
+   * Parse faturas do response da Pierre
+   * Retorna uma fatura por cartão/conta
    */
-  private parseTransactions(response: unknown): ParsedTransaction[] {
-    const transactions: ParsedTransaction[] = [];
+  private parseBills(response: unknown): CardBill[] {
+    const bills: CardBill[] = [];
 
     try {
       const content = (response as any)?.result?.content?.[0]?.text;
       if (!content) return [];
 
-      // Response vem em JSON, não em texto
       try {
         const data = JSON.parse(content);
-        // Estrutura esperada: { success, data: { transactionList: [...] } }
-        const list = data?.data?.transactionList || [];
+        const officialBills = data?.data?.officialBills || [];
 
-        for (const tx of list) {
-          if (!tx.amount || !tx.merchant) continue;
+        for (const bill of officialBills) {
+          if (!bill.account_name || bill.official_bill_amount === undefined) continue;
 
-          transactions.push({
-            merchant: tx.merchant || 'Unknown',
-            amount: Math.abs(tx.amount), // Sempre positivo
-            date: tx.transactionDate || new Date().toISOString().split('T')[0],
-            description: tx.description,
-            cardName: tx.cardName,
+          bills.push({
+            accountName: bill.account_name,
+            accountId: bill.account_id,
+            amount: Math.max(0, bill.official_bill_amount), // Nunca negativo
+            dueDate: bill.due_date || new Date().toISOString().split('T')[0],
+            closingDate: bill.closing_day,
           });
         }
       } catch {
-        // Se não conseguir fazer parse como JSON, content é string descritiva
-        console.warn('Could not parse transaction list');
+        console.warn('Could not parse bills data');
       }
     } catch (error) {
-      console.error('Error parsing transactions:', error);
+      console.error('Error parsing bills:', error);
     }
 
-    return transactions;
-  }
-
-  /**
-   * Parse fatura do response
-   */
-  private parseBill(response: unknown): {
-    total: number;
-    dueDate: string;
-    accounts: Array<{ name: string; amount: number }>;
-  } | null {
-    try {
-      const content = (response as any)?.result?.content?.[0]?.text;
-      if (!content) return null;
-
-      // Tenta fazer parse como JSON
-      try {
-        const data = JSON.parse(content);
-        const bills = data?.data?.officialBills || [];
-
-        if (bills.length === 0) return null;
-
-        const total = bills.reduce((sum: number, bill: any) => sum + (bill.official_bill_amount || 0), 0);
-        const dueDate = bills[0]?.due_date || new Date().toISOString().split('T')[0];
-
-        return {
-          total,
-          dueDate,
-          accounts: bills.map((bill: any) => ({
-            name: bill.account_name || 'Unknown',
-            amount: bill.official_bill_amount || 0,
-          })),
-        };
-      } catch {
-        console.warn('Could not parse bill data');
-        return null;
-      }
-    } catch (error) {
-      console.error('Error parsing bill:', error);
-      return null;
-    }
+    return bills;
   }
 
   /**
