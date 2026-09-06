@@ -9,10 +9,8 @@ import {
 import { resolveYearWithCookie } from '@/lib/domain/years';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
-import { BillChartsSection } from '@/components/charts/bill-charts-section';
 import { PivotTable, type PivotRow, type MonthlyActual } from '@/components/pivot-table';
-import type { TransactionRow, ShoppingItemRow, MonthlyActualRow, CardRow } from '@/lib/supabase/types';
-import { PierreSyncButton } from '@/components/pierre-sync-button';
+import type { TransactionRow, ShoppingItemRow, MonthlyActualRow } from '@/lib/supabase/types';
 import { ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +36,6 @@ export default async function Dashboard({
     { data: allTxs, error: txError },
     { data: actualsData, error: actualsError },
     { data: billedTxs, error: billedError },
-    { data: cardsData, error: cardsError },
   ] = await Promise.all([
     supabase
       .from('transactions')
@@ -61,15 +58,11 @@ export default async function Dashboard({
       .select('*')
       .gte('billing_month', startOfYear)
       .lt('billing_month', endOfYear),
-    supabase
-      .from('cards')
-      .select('*'),
   ]);
 
   if (txError) console.error('[dashboard tx]', txError);
   if (actualsError) console.error('[dashboard actuals]', actualsError);
   if (billedError) console.error('[dashboard billed]', billedError);
-  if (cardsError) console.error('[dashboard cards]', cardsError);
   // Set de competência (expense_month) — usado pra "mês atual" / "acumulado do ano" / gráficos,
   // que representam movimentação financeira no ano por data de compra, não de fatura.
   const txs = (allTxs ?? []) as TransactionRow[];
@@ -132,10 +125,7 @@ export default async function Dashboard({
     <div className="space-y-10">
       {/* Cabeçalho editorial */}
       <header className="space-y-4 pb-6 border-b border-rule/60">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <p className="eyebrow">Volume {year} · Edição mensal</p>
-          <PierreSyncButton />
-        </div>
+        <p className="eyebrow">Volume {year} · Edição mensal</p>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <h2 className="headline text-5xl md:text-6xl font-light tracking-tight leading-none">
             <span className="italic font-extralight text-foreground/70">de</span>{' '}
@@ -188,19 +178,6 @@ export default async function Dashboard({
           transactions={chartTxs}
           yearStart={startOfYear}
           todayKey={currentMonthKey}
-        />
-      </section>
-
-      {/* Gráficos de Faturas (Pierre Integration) */}
-      <section>
-        <SectionHeader
-          eyebrow="Faturas"
-          title="Cartão vs Manual vs Total"
-          subtitle="Sincronizado com Pierre"
-        />
-        <BillChartsSection
-          cards={(cardsData as CardRow[]) || []}
-          transactions={(allTxs as TransactionRow[]) || []}
         />
       </section>
 

@@ -52,10 +52,6 @@ export function CardForm({ userId, editing, onDone }: CardFormProps) {
     setSubmitting(true);
     try {
       const supabase = createClient();
-      // Campos editáveis pelo formulário — NÃO inclui bill_amount/bill_due_date/
-      // bill_updated_at, que são geridos pela sincronização Pierre. Incluí-los
-      // aqui já causou um bug real: editar a cor de um cartão apagava
-      // silenciosamente a fatura sincronizada (sempre sobrescrita com null).
       const editableFields = {
         name: name.trim(),
         brand,
@@ -92,8 +88,6 @@ export function CardForm({ userId, editing, onDone }: CardFormProps) {
         const payload: Insert = {
           user_id: userId,
           ...editableFields,
-          bill_amount: null,
-          bill_due_date: null,
         };
         const { error } = await supabase.from('cards').insert(payload);
         if (error) throw error;

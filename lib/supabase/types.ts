@@ -15,15 +15,11 @@ export type Database = {
           closing_day: number | null;
           due_day: number | null;
           color: string | null;
-          bill_amount: number | null;
-          bill_due_date: string | null;
-          bill_updated_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['cards']['Row'], 'id' | 'created_at' | 'bill_updated_at'> & {
+        Insert: Omit<Database['public']['Tables']['cards']['Row'], 'id' | 'created_at'> & {
           id?: string;
           created_at?: string;
-          bill_updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['cards']['Insert']>;
         Relationships: [];
