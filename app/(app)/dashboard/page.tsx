@@ -9,8 +9,9 @@ import {
 import { resolveYearWithCookie } from '@/lib/domain/years';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
+import { BillChartsSection } from '@/components/charts/bill-charts-section';
 import { PivotTable, type PivotRow, type MonthlyActual } from '@/components/pivot-table';
-import type { TransactionRow, ShoppingItemRow, MonthlyActualRow } from '@/lib/supabase/types';
+import type { TransactionRow, ShoppingItemRow, MonthlyActualRow, CardRow } from '@/lib/supabase/types';
 import { PierreSyncButton } from '@/components/pierre-sync-button';
 import { ExternalLink } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export default async function Dashboard({
     { data: allTxs, error: txError },
     { data: actualsData, error: actualsError },
     { data: billedTxs, error: billedError },
+    { data: cardsData, error: cardsError },
   ] = await Promise.all([
     supabase
       .from('transactions')
@@ -49,6 +51,7 @@ export default async function Dashboard({
       .select('month,balance')
       .gte('month', startOfYear)
       .lt('month', endOfYear),
+    supabase.from('cards').select('*'),
     // Qualquer lançamento cuja fatura (billing_month) cai neste ano, mesmo que
     // expense_month seja de outro ano — cobre tanto parcelamentos longos quanto
     // uma compra avulsa no crédito perto do fechamento (ex: compra em dez/26
@@ -182,6 +185,19 @@ export default async function Dashboard({
           transactions={chartTxs}
           yearStart={startOfYear}
           todayKey={currentMonthKey}
+        />
+      </section>
+
+      {/* Gráficos de Faturas (Pierre Integration) */}
+      <section>
+        <SectionHeader
+          eyebrow="Faturas"
+          title="Cartão vs Manual vs Total"
+          subtitle="Sincronizado com Pierre"
+        />
+        <BillChartsSection
+          cards={(cardsData as CardRow[]) || []}
+          transactions={(allTxs as TransactionRow[]) || []}
         />
       </section>
 
