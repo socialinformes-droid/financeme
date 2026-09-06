@@ -224,11 +224,20 @@ export function TransactionForm({
         if (error) throw error;
         toast.success('Lançamento criado');
       }
+      // Reset completo pros defaults de "novo lançamento" — não faz spread
+      // de form.getValues(), senão toggles como is_installment/is_recurring
+      // e o card_id selecionado vazam pra próxima abertura do formulário
+      // (a Sheet reusa a mesma instância entre aberturas sem editar).
       form.reset({
-        ...form.getValues(),
         description: '',
         amount: 0,
-        notes: '',
+        type: 'expense',
+        payment_method: 'debit',
+        category: 'Outros',
+        transaction_date: toISODate(new Date()),
+        is_recurring: false,
+        is_paid: false,
+        is_installment: false,
       });
       onDone?.();
     } catch (e) {

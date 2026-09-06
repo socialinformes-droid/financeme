@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { RefreshCw, CheckCircle2 } from 'lucide-react';
 
 export function PierreSyncButton() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
@@ -39,6 +41,10 @@ export function PierreSyncButton() {
         console.warn('Errors during sync:', data.errors);
         toast.warning(`⚠️ ${data.errors.length} erro(s) encontrado(s)`);
       }
+
+      // Dashboard é Server Component — sem isso, os gráficos de fatura
+      // continuam mostrando dados antigos até um F5 manual.
+      router.refresh();
     } catch (error) {
       console.error('Sync error:', error);
       toast.error('Erro de conexão ao sincronizar');

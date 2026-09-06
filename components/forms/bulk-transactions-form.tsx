@@ -172,6 +172,23 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
       }
 
       toast.success(`${inserts.length} lançamentos criados`);
+      // Reset completo — sem isso, reabrir "Em massa" reusa description,
+      // toggles, cartão e valores já digitados na grade da sessão anterior
+      // (rows não reseta sozinho via useEffect se o período não mudar,
+      // porque o useMemo de `months` mantém a mesma referência).
+      setDescription('');
+      setType('expense');
+      setPaymentMethod('debit');
+      setCategory('Outros');
+      setCardId(undefined);
+      setNotes('');
+      setIsPaid(false);
+      setDefaultAmount(0);
+      setStartYear(CURRENT_YEAR);
+      setStartMonth(new Date().getMonth() + 1);
+      setEndYear(CURRENT_YEAR);
+      setEndMonth(12);
+      setRows([]);
       onDone?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro ao salvar';

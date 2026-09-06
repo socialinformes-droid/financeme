@@ -43,7 +43,12 @@ export function ForecastView({
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState(0);
   const [newType, setNewType] = useState<'income' | 'expense'>('expense');
-  const [newMonth, setNewMonth] = useState(months.find((m) => !m.isPast)?.month ?? months[0].month);
+  // Precisa bater com o filtro de `futureMonths` (linha ~143) usado no <Select> —
+  // usar apenas "!isPast" incluía o mês atual, que não aparece nas opções do
+  // dropdown, deixando newMonth com um valor sem SelectItem correspondente.
+  const [newMonth, setNewMonth] = useState(
+    months.find((m) => !m.isPast && !m.isCurrent)?.month ?? months[0].month,
+  );
 
   // Calcula linha por mês
   const enriched = useMemo(() => {

@@ -52,23 +52,49 @@ export function CardForm({ userId, editing, onDone }: CardFormProps) {
     setSubmitting(true);
     try {
       const supabase = createClient();
-      type Insert = Database['public']['Tables']['cards']['Insert'];
-      const payload: Insert = {
-        user_id: userId,
+      // Campos editáveis pelo formulário — NÃO inclui bill_amount/bill_due_date/
+      // bill_updated_at, que são geridos pela sincronização Pierre. Incluí-los
+      // aqui já causou um bug real: editar a cor de um cartão apagava
+      // silenciosamente a fatura sincronizada (sempre sobrescrita com null).
+      const editableFields = {
         name: name.trim(),
         brand,
         limit_amount: limitAmount || null,
         closing_day: closingDay,
         due_day: dueDay,
         color,
-        bill_amount: null,
-        bill_due_date: null,
       };
       if (isEdit && editing) {
-        const { error } = await supabase.from('cards').update(payload).eq('id', editing.id);
+        const { error } = await supabase.from('cards').update(editableFields).eq('id', editing.id);
         if (error) throw error;
         toast.success('Cartão atualizado');
       } else {
+        // Evita duplicatas por engano (já causou 2x "Nubank" e "Mercado Pago"/
+        // "Mercadopago" cadastrados neste banco) — avisa antes de criar se já
+        // existe cartão com nome igual (case-insensitive).
+        const { data: existing } = await supabase
+          .from('cards')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', editableFields.name);
+
+        if (existing && existing.length > 0) {
+          const confirmed = window.confirm(
+            `Já existe um cartão chamado "${editableFields.name}". Criar mesmo assim?`
+          );
+          if (!confirmed) {
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        type Insert = Database['public']['Tables']['cards']['Insert'];
+        const payload: Insert = {
+          user_id: userId,
+          ...editableFields,
+          bill_amount: null,
+          bill_due_date: null,
+        };
         const { error } = await supabase.from('cards').insert(payload);
         if (error) throw error;
         toast.success('Cartão adicionado');
