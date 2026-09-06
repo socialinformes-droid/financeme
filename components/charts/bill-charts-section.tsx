@@ -74,22 +74,21 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   const totalAll = totalBill + totalManual;
 
   const ChartContainer = ({ title, data, amount }: any) => (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader>
         <CardTitle className="text-lg">{title}</CardTitle>
         <p className="text-2xl font-bold text-accent mt-2">
           {amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 flex items-center justify-center">
         {data.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Nenhum dado disponível
           </p>
         ) : (
-          <div style={{ width: '100%', height: 300, minHeight: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+          <ResponsiveContainer width="100%" height={350}>
+            <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <Pie
                 data={data}
                 cx="50%"
@@ -114,8 +113,7 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
               />
               <Legend />
             </PieChart>
-            </ResponsiveContainer>
-          </div>
+          </ResponsiveContainer>
         )}
       </CardContent>
     </Card>
