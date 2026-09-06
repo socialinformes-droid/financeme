@@ -10,14 +10,80 @@ interface BillChartsProps {
   transactions: TransactionRow[];
 }
 
+type ChartDatum = { name: string; value: number };
+
 const COLORS = [
   '#5a7d4f', '#7a9a5a', '#5a8a8a', '#6b4f7a', '#3f7a7a',
   '#b76e54', '#a84e3e', '#a85e7a', '#4e6e8e', '#5e6e8e',
 ];
 
+function ChartContainer({
+  title,
+  data,
+  amount,
+}: {
+  title: string;
+  data: ChartDatum[];
+  amount: number;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+        <p className="text-2xl font-bold text-accent mt-2">
+          {amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        </p>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+            Nenhum dado disponível
+          </div>
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={48}
+                  outerRadius={86}
+                  paddingAngle={2}
+                  stroke="oklch(0.992 0.005 90)"
+                  strokeWidth={2}
+                >
+                  {data.map((d, index) => (
+                    <Cell key={d.name} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'oklch(0.992 0.005 90)',
+                    border: '1px solid oklch(0.86 0.012 82)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  formatter={(value) =>
+                    (value as number).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })
+                  }
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   // Gráfico 1: Faturas de Cartão
-  const billChart = useMemo(() => {
+  const billChart = useMemo<ChartDatum[]>(() => {
     return cards
       .filter((c) => (c.bill_amount ?? 0) > 0)
       .map((card) => ({
@@ -27,7 +93,7 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   }, [cards]);
 
   // Gráfico 2: Transações Manuais (Débito/PIX/Cash)
-  const manualChart = useMemo(() => {
+  const manualChart = useMemo<ChartDatum[]>(() => {
     const data: Record<string, number> = {};
 
     transactions
@@ -44,7 +110,7 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   }, [transactions]);
 
   // Gráfico 3: Total (Cartão + Manual)
-  const totalChart = useMemo(() => {
+  const totalChart = useMemo<ChartDatum[]>(() => {
     const data: Record<string, number> = {};
 
     // Adiciona valores de cartão
@@ -72,60 +138,6 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
   const totalBill = billChart.reduce((sum, c) => sum + c.value, 0);
   const totalManual = manualChart.reduce((sum, c) => sum + c.value, 0);
   const totalAll = totalBill + totalManual;
-
-  const ChartContainer = ({ title, data, amount }: any) => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
-        <p className="text-2xl font-bold text-accent mt-2">
-          {amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-        </p>
-      </CardHeader>
-      <CardContent>
-        {data.length === 0 ? (
-          <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
-            Nenhum dado disponível
-          </div>
-        ) : (
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={48}
-                  outerRadius={86}
-                  paddingAngle={2}
-                  stroke="oklch(0.992 0.005 90)"
-                  strokeWidth={2}
-                >
-                  {data.map((d: any, index: number) => (
-                    <Cell key={d.name} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: 'oklch(0.992 0.005 90)',
-                    border: '1px solid oklch(0.86 0.012 82)',
-                    borderRadius: 6,
-                    fontSize: 12,
-                  }}
-                  formatter={(value) =>
-                    (value as number).toLocaleString('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    })
-                  }
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   return (
     <div className="space-y-6">
