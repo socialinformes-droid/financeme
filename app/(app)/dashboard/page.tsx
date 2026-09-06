@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartsSection, type ChartTransaction } from '@/components/charts/charts-section';
 import { PivotTable, type PivotRow, type MonthlyActual } from '@/components/pivot-table';
 import type { TransactionRow, ShoppingItemRow, MonthlyActualRow } from '@/lib/supabase/types';
+import { PierreSyncButton } from '@/components/pierre-sync-button';
 import { ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -124,8 +125,11 @@ export default async function Dashboard({
   return (
     <div className="space-y-10">
       {/* Cabeçalho editorial */}
-      <header className="space-y-2 pb-6 border-b border-rule/60">
-        <p className="eyebrow">Volume {year} · Edição mensal</p>
+      <header className="space-y-4 pb-6 border-b border-rule/60">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <p className="eyebrow">Volume {year} · Edição mensal</p>
+          <PierreSyncButton />
+        </div>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <h2 className="headline text-5xl md:text-6xl font-light tracking-tight leading-none">
             <span className="italic font-extralight text-foreground/70">de</span>{' '}
