@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         updated: 0,
-        message: 'No bills found',
+        total: 0,
+        skipped: 0,
         lastSync: new Date().toISOString(),
       });
     }
@@ -68,20 +69,36 @@ export async function GET(request: NextRequest) {
     for (const bill of bills) {
       try {
         // Encontrar cartão pelo nome da conta (Nubank, Inter, etc)
-        const { data: card } = await supabase
+        // Não usa .single() porque lança erro tanto pra 0 quanto pra 2+ matches —
+        // aqui queremos distinguir os dois casos na mensagem de erro.
+        const { data: matches, error: lookupError } = await supabase
           .from('cards')
-          .select('id')
+          .select('id, name')
           .eq('user_id', user.id)
-          .ilike('name', `%${bill.accountName}%`)
-          .single();
+          .ilike('name', `%${bill.accountName}%`);
 
-        if (!card) {
+        if (lookupError) {
+          errors.push({ card: bill.accountName, error: lookupError.message });
+          continue;
+        }
+
+        if (!matches || matches.length === 0) {
           errors.push({
             card: bill.accountName,
-            error: `Card not found for account "${bill.accountName}"`,
+            error: `Nenhum cartão cadastrado com nome contendo "${bill.accountName}". Cadastre um cartão com esse nome (ou parte dele) na aba Cartões.`,
           });
           continue;
         }
+
+        if (matches.length > 1) {
+          errors.push({
+            card: bill.accountName,
+            error: `${matches.length} cartões cadastrados batem com "${bill.accountName}" (${matches.map((m) => m.name).join(', ')}) — ambíguo, pulei.`,
+          });
+          continue;
+        }
+
+        const card = matches[0];
 
         // Atualizar fatura do cartão
         const { error } = await supabase

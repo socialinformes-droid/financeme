@@ -23,14 +23,14 @@ export function PierreSyncButton() {
         return;
       }
 
-      if (data.synced > 0) {
+      if (data.updated > 0) {
         toast.success(
-          `✅ ${data.synced} transação(ões) sincronizada(s) de ${data.total} encontrada(s)`
+          `✅ ${data.updated} fatura(s) atualizada(s) de ${data.total} encontrada(s)`
         );
       } else if (data.total === 0) {
-        toast.info('ℹ️ Nenhuma transação nova encontrada nos últimos 7 dias');
+        toast.info('ℹ️ Nenhuma fatura em aberto encontrada na Pierre');
       } else {
-        toast.info(`ℹ️ ${data.total} transação(ões) já existem`);
+        toast.warning(`⚠️ ${data.total} fatura(s) encontrada(s), mas nenhuma pôde ser vinculada a um cartão`);
       }
 
       setLastSync(new Date().toLocaleString('pt-BR'));
