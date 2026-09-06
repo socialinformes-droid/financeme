@@ -61,7 +61,7 @@ export class PierreClient {
     };
 
     try {
-      const response = await this.makeRequest(payload);
+      const response = await this.makeRequest(payload) as any;
       return response.result?.serverInfo?.name === 'Pierre Finance';
     } catch (error) {
       console.error('Failed to initialize Pierre client:', error);
@@ -93,7 +93,7 @@ export class PierreClient {
     };
 
     try {
-      const response = await this.makeRequest(payload);
+      const response = await this.makeRequest(payload) as any;
       return this.parseTransactions(response);
     } catch (error) {
       console.error('Failed to get transactions from Pierre:', error);
@@ -122,7 +122,7 @@ export class PierreClient {
     };
 
     try {
-      const response = await this.makeRequest(payload);
+      const response = await this.makeRequest(payload) as any;
       return this.parseBill(response);
     } catch (error) {
       console.error('Failed to get bill from Pierre:', error);
