@@ -87,7 +87,8 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
             Nenhum dado disponível
           </p>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <div style={{ width: '100%', height: 300, minHeight: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
@@ -113,7 +114,8 @@ export function BillChartsSection({ cards, transactions }: BillChartsProps) {
               />
               <Legend />
             </PieChart>
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
     </Card>
