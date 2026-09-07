@@ -13,6 +13,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   ChevronDown,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -224,6 +225,7 @@ export function TransactionsView({
   const [groupRows, setGroupRows] = useState<GroupRow[] | null>(null);
   const [groupContextRowId, setGroupContextRowId] = useState<string | null>(null);
   const [loadingGroup, setLoadingGroup] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     type: [],
@@ -341,6 +343,30 @@ export function TransactionsView({
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { buildTransactionsWorkbook } = await import('@/lib/export-transactions');
+      const buffer = await buildTransactionsWorkbook(sorted, cards);
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lancamentos-${year}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`${sorted.length} lançamentos exportados`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao exportar');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 pb-4 border-b border-rule/60">
@@ -357,6 +383,14 @@ export function TransactionsView({
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exporting || sorted.length === 0}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? 'Gerando…' : 'Exportar'}
+          </Button>
           <Sheet open={bulkOpen} onOpenChange={setBulkOpen}>
             <SheetTrigger render={<Button variant="outline" />} onClick={() => setBulkOpen(true)}>
               <Layers className="mr-2 h-4 w-4" />
