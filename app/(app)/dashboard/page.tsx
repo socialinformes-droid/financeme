@@ -161,6 +161,7 @@ export default async function Dashboard({
         />
         <PivotTable
           data={pivotRows}
+          monthAxis="billing"
           startMonth={`${year}-01-01`}
           monthsCount={12}
           actuals={actuals}
