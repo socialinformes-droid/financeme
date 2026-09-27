@@ -54,6 +54,12 @@ export function CardsView({
       const currentFatura = cardTxs
         .filter((t) => t.billing_month === todayKey)
         .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+
+      // Soma TODAS as transações não pagas (comprometidas no limite)
+      const unpaidTotal = cardTxs
+        .filter((t) => !t.is_paid && (t.type === 'expense' || t.category === 'Cartão'))
+        .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+
       // últimas 6 faturas
       const byMonth = new Map<string, number>();
       for (const t of cardTxs) {
@@ -64,7 +70,7 @@ export function CardsView({
         .sort((a, b) => b[0].localeCompare(a[0]))
         .slice(0, 6)
         .reverse();
-      return { card: c, currentFatura, history, txCount: cardTxs.length };
+      return { card: c, currentFatura, unpaidTotal, history, txCount: cardTxs.length };
     });
   }, [initialCards, transactions, todayKey]);
 
@@ -158,9 +164,10 @@ export function CardsView({
         </div>
 
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {enriched.map(({ card, currentFatura, history, txCount }) => {
+          {enriched.map(({ card, currentFatura, unpaidTotal, history, txCount }) => {
             const limit = Number(card.limit_amount ?? 0);
-            const usage = limit > 0 ? (currentFatura / limit) * 100 : 0;
+            const saldoDisponivel = Math.max(0, limit - unpaidTotal);
+            const usagePercent = limit > 0 ? (unpaidTotal / limit) * 100 : 0;
             return (
               <li key={card.id}>
                 <div
@@ -205,18 +212,42 @@ export function CardsView({
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-end justify-between">
+                    {limit > 0 && (
+                      <div className="mt-4 flex items-end justify-between">
+                        <div>
+                          <p className="eyebrow">Saldo Disponível</p>
+                          <p className={cn(
+                            'font-mono text-2xl tabular-nums',
+                            saldoDisponivel > limit * 0.2
+                              ? 'text-money-up'
+                              : saldoDisponivel > 0
+                                ? 'text-accent-warm'
+                                : 'text-money-down'
+                          )}>
+                            {formatBRL(saldoDisponivel)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="eyebrow">Limite</p>
+                          <p className="font-mono text-sm tabular-nums text-foreground/70">
+                            {formatBRL(limit)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex items-end justify-between">
                       <div>
                         <p className="eyebrow">Fatura {formatMonthBR(todayKey)}</p>
-                        <p className="font-mono text-2xl tabular-nums text-money-down">
+                        <p className="font-mono text-sm tabular-nums text-foreground/70">
                           {formatBRL(currentFatura)}
                         </p>
                       </div>
                       {limit > 0 && (
                         <div className="text-right">
-                          <p className="eyebrow">Limite</p>
+                          <p className="eyebrow">Comprometido</p>
                           <p className="font-mono text-sm tabular-nums text-foreground/70">
-                            {formatBRL(limit)}
+                            {formatBRL(unpaidTotal)}
                           </p>
                         </div>
                       )}
@@ -228,17 +259,17 @@ export function CardsView({
                           <div
                             className={cn(
                               'h-full transition-all',
-                              usage > 80
+                              usagePercent > 80
                                 ? 'bg-money-down'
-                                : usage > 50
+                                : usagePercent > 50
                                   ? 'bg-accent-warm'
                                   : 'bg-money-up',
                             )}
-                            style={{ width: `${Math.min(100, usage)}%` }}
+                            style={{ width: `${Math.min(100, usagePercent)}%` }}
                           />
                         </div>
                         <p className="text-[10px] text-muted-foreground italic">
-                          {usage.toFixed(0)}% do limite
+                          {usagePercent.toFixed(0)}% comprometido
                         </p>
                       </div>
                     )}
