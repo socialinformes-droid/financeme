@@ -65,9 +65,11 @@ export function resolveScopeIds(rows: ScopeRow[], clicked: ScopeRow, scope: Acti
 export function parseBRLInput(input: string): number | null {
   const cleaned = input.replace(/R\$/g, '').replace(/\s/g, '');
   if (cleaned === '' || cleaned.startsWith('-')) return null;
-  const normalized = cleaned.includes(',')
-    ? cleaned.replace(/\./g, '').replace(',', '.')
-    : cleaned;
-  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
-  return Number(normalized);
+  if (cleaned.includes(',')) {
+    if (!/^(\d{1,3}(\.\d{3})*|\d+),\d+$/.test(cleaned)) return null;
+    return Number(cleaned.replace(/\./g, '').replace(',', '.'));
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) return Number(cleaned.replace(/\./g, ''));
+  if (/^\d+(\.\d{1,2})?$/.test(cleaned)) return Number(cleaned);
+  return null;
 }

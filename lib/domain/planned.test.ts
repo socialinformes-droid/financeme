@@ -92,4 +92,17 @@ describe('parseBRLInput', () => {
     expect(parseBRLInput('abc')).toBeNull();
     expect(parseBRLInput('-10')).toBeNull();
   });
+  it('trata ponto sem vírgula como separador de milhar quando o padrão bate', () => {
+    expect(parseBRLInput('1.234')).toBe(1234);
+    expect(parseBRLInput('1.234.567')).toBe(1234567);
+  });
+  it('trata ponto sem milhar como decimal simples', () => {
+    expect(parseBRLInput('3.5')).toBe(3.5);
+    expect(parseBRLInput('1,5')).toBe(1.5);
+  });
+  it('rejeita formato americano e entradas inválidas', () => {
+    expect(parseBRLInput('1,234.56')).toBeNull();
+    expect(parseBRLInput('R$')).toBeNull();
+    expect(parseBRLInput('1.2345')).toBeNull();
+  });
 });
