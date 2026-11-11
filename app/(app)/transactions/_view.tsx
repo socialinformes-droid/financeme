@@ -14,6 +14,7 @@ import {
   ArrowUpDown,
   ChevronDown,
   Download,
+  CalendarClock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -49,6 +50,8 @@ import {
 import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
+import { ActiveScopeDialog } from '@/components/transactions/active-scope-dialog';
+import { isActive, resolveScopeIds, type ActiveScope, type ScopeRow } from '@/lib/domain/planned';
 import type { GroupRow } from '@/lib/domain/installments';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
@@ -137,12 +140,14 @@ function MultiSelect({
 type TxType = 'income' | 'expense';
 type PaymentMethod = 'credit' | 'debit' | 'pix' | 'cash';
 type StatusFilter = 'paid' | 'pending';
+type ActivityFilter = 'active' | 'planned';
 
 type Filters = {
   q: string;
   type: TxType[];
   method: PaymentMethod[];
   status: StatusFilter[];
+  activity: ActivityFilter[];
   category: string[];
   expenseMonth: string[];
   billingMonth: string[];
@@ -226,11 +231,13 @@ export function TransactionsView({
   const [groupContextRowId, setGroupContextRowId] = useState<string | null>(null);
   const [loadingGroup, setLoadingGroup] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [scopeTarget, setScopeTarget] = useState<TransactionRow | null>(null);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     type: [],
     method: [],
     status: [],
+    activity: [],
     category: [],
     expenseMonth: [],
     billingMonth: [],
@@ -261,6 +268,10 @@ export function TransactionsView({
         const s: StatusFilter = t.is_paid ? 'paid' : 'pending';
         if (!filters.status.includes(s)) return false;
       }
+      if (filters.activity.length) {
+        const a: ActivityFilter = isActive(t) ? 'active' : 'planned';
+        if (!filters.activity.includes(a)) return false;
+      }
       if (filters.category.length && !filters.category.includes(t.category)) return false;
       if (filters.expenseMonth.length && !filters.expenseMonth.includes(t.expense_month ?? ''))
         return false;
@@ -274,11 +285,16 @@ export function TransactionsView({
   const totals = useMemo(() => {
     let income = 0;
     let expense = 0;
+    let planned = 0;
     for (const t of filtered) {
+      if (!isActive(t)) {
+        planned += 1;
+        continue;
+      }
       if (t.type === 'income') income += Number(t.amount);
       else expense += Math.abs(Number(t.amount));
     }
-    return { income, expense, balance: income - expense, count: filtered.length };
+    return { income, expense, balance: income - expense, count: filtered.length, planned };
   }, [filtered]);
 
   const sorted = useMemo(() => {
@@ -309,6 +325,43 @@ export function TransactionsView({
       toast.success(t.is_paid ? 'Marcada como pendente' : 'Marcada como paga');
       refresh();
     }
+  };
+
+  const applyActive = async (ids: string[], value: boolean) => {
+    const supabase = createClient();
+    const { error } = await supabase.from('transactions').update({ is_active: value }).in('id', ids);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(
+        value
+          ? `${ids.length} ativado(s)`
+          : `${ids.length} marcado(s) como previsto`,
+      );
+      refresh();
+    }
+  };
+
+  const requestToggleActive = (t: TransactionRow) => {
+    if (t.installment_group_id) setScopeTarget(t);
+    else void applyActive([t.id], !isActive(t));
+  };
+
+  const confirmScope = async (scope: ActiveScope) => {
+    const t = scopeTarget;
+    if (!t || !t.installment_group_id) return;
+    setScopeTarget(null);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('id,installment_group_id,billing_month')
+      .eq('installment_group_id', t.installment_group_id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const rows = (data ?? []) as ScopeRow[];
+    const ids = resolveScopeIds(rows, t, scope);
+    await applyActive(ids, !isActive(t));
   };
 
   const openGroupEdit = async (t: TransactionRow) => {
@@ -380,6 +433,11 @@ export function TransactionsView({
             <span className={`font-mono not-italic ${totals.balance >= 0 ? 'text-money-up' : 'text-money-down'}`}>
               {formatBRL(totals.balance)}
             </span>
+            {totals.planned > 0 && (
+              <>
+                {' '}· <span className="not-italic">{totals.planned} {totals.planned === 1 ? 'previsto' : 'previstos'} fora dos totais</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -460,7 +518,7 @@ export function TransactionsView({
       </header>
 
       {/* Filtros */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-8 gap-2">
         <div className="col-span-2 md:col-span-2 relative">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -508,6 +566,15 @@ export function TransactionsView({
           onChange={(v) => setFilters((f) => ({ ...f, billingMonth: v }))}
           options={billingMonths.map((m) => ({ value: m, label: formatMonthBR(m) }))}
         />
+        <MultiSelect
+          label="Ativo"
+          values={filters.activity}
+          onChange={(v) => setFilters((f) => ({ ...f, activity: v as ActivityFilter[] }))}
+          options={[
+            { value: 'active', label: 'Ativos' },
+            { value: 'planned', label: 'Previstos' },
+          ]}
+        />
       </div>
 
       {/* Tabela */}
@@ -523,7 +590,7 @@ export function TransactionsView({
               <SortHead label="Mês fatura" sortKey="billing_month" sort={sort} onToggle={toggleSort} />
               <SortHead label="Valor" sortKey="amount" sort={sort} onToggle={toggleSort} align="right" />
               <TableHead>Status</TableHead>
-              <TableHead className="w-20" />
+              <TableHead className="w-28" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -535,7 +602,7 @@ export function TransactionsView({
               </TableRow>
             ) : (
               sorted.map((t) => (
-                <TableRow key={t.id}>
+                <TableRow key={t.id} className={isActive(t) ? undefined : 'opacity-55'}>
                   <TableCell className="font-medium max-w-[260px] truncate" title={t.description}>
                     {t.description}
                     {t.is_recurring && (
@@ -545,6 +612,9 @@ export function TransactionsView({
                       <Badge variant="outline" className="ml-2 text-[10px]">
                         {t.installment_number}/{t.total_installments}
                       </Badge>
+                    )}
+                    {!isActive(t) && (
+                      <Badge variant="outline" className="ml-2 text-[10px]">Previsto</Badge>
                     )}
                   </TableCell>
                   <TableCell>{t.category}</TableCell>
@@ -573,6 +643,18 @@ export function TransactionsView({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        title={isActive(t) ? 'Marcar como previsto' : 'Ativar'}
+                        onClick={() => requestToggleActive(t)}
+                        disabled={pending}
+                      >
+                        <CalendarClock
+                          className={`h-3.5 w-3.5 ${isActive(t) ? '' : 'text-amber-500'}`}
+                        />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -650,6 +732,13 @@ export function TransactionsView({
           </div>
         </SheetContent>
       </Sheet>
+
+      <ActiveScopeDialog
+        target={scopeTarget}
+        nextActive={scopeTarget ? !isActive(scopeTarget) : false}
+        onClose={() => setScopeTarget(null)}
+        onConfirm={confirmScope}
+      />
     </div>
   );
 }
