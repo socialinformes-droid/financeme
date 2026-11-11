@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { calculateBillingMonth } from '@/lib/domain/billing';
+import { isCardBill } from '@/lib/domain/planned';
 import { createInstallmentTransactions, createRecurringTransactions } from '@/lib/domain/installments';
 import { firstDayOfMonth, formatBRL, toISODate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -107,6 +108,9 @@ export function TransactionForm({
   const totalInstallments = form.watch('total_installments') ?? 0;
   const recurrenceMonths = form.watch('recurrence_months') ?? 0;
   const amount = form.watch('amount');
+  const category = form.watch('category');
+  const cardBillSelected = isCardBill({ category });
+  const plannedLockedByCardBill = cardBillSelected && form.watch('is_active');
 
   useEffect(() => {
     if (type === 'income') form.setValue('is_installment', false);
@@ -133,6 +137,11 @@ export function TransactionForm({
     }
 
     setSubmitting(true);
+    // Fatura de cartão nunca vira prevista: nova linha ou linha já ativa sempre salva ativa.
+    const isActiveValue =
+      isCardBill({ category: values.category }) && (!isEdit || editing?.is_active !== false)
+        ? true
+        : values.is_active;
     try {
       const supabase = createClient();
       const txDate = new Date(`${values.transaction_date}T12:00:00`);
@@ -159,7 +168,7 @@ export function TransactionForm({
             card_id: values.card_id ?? null,
             is_recurring: values.is_recurring,
             is_paid: values.is_paid,
-            is_active: values.is_active,
+            is_active: isActiveValue,
             transaction_date: values.transaction_date,
           })
           .eq('id', editing.id);
@@ -182,7 +191,7 @@ export function TransactionForm({
           card,
           notes: values.notes ?? null,
           isRecurring: values.is_recurring,
-          isActive: values.is_active,
+          isActive: isActiveValue,
         });
         const { error } = await supabase.from('transactions').insert(rows);
         if (error) throw error;
@@ -200,7 +209,7 @@ export function TransactionForm({
           cardId: values.card_id ?? null,
           card,
           notes: values.notes ?? null,
-          isActive: values.is_active,
+          isActive: isActiveValue,
         });
         const { error } = await supabase.from('transactions').insert(rows);
         if (error) throw error;
@@ -220,7 +229,7 @@ export function TransactionForm({
           card_id: values.card_id ?? null,
           is_recurring: values.is_recurring,
           is_paid: values.is_paid,
-          is_active: values.is_active,
+          is_active: isActiveValue,
           transaction_date: values.transaction_date,
           is_installment: false,
           installment_number: null,
@@ -447,12 +456,21 @@ export function TransactionForm({
             <p className="text-xs text-muted-foreground">
               Fica só na lista, fora de saldos, totais e gráficos
             </p>
+            {plannedLockedByCardBill && (
+              <p className="text-xs text-muted-foreground">
+                Faturas de cartão não podem ser lançadas como previstas
+              </p>
+            )}
           </div>
           <Controller
             name="is_active"
             control={form.control}
             render={({ field }) => (
-              <Switch checked={!field.value} onCheckedChange={(v) => field.onChange(!v)} />
+              <Switch
+                checked={!field.value}
+                disabled={plannedLockedByCardBill}
+                onCheckedChange={(v) => field.onChange(!v)}
+              />
             )}
           />
         </div>

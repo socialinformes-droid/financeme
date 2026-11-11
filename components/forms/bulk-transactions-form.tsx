@@ -6,6 +6,7 @@ import { Wand2, ArrowDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { DEFAULT_CATEGORIES } from '@/lib/domain/categories';
 import { calculateBillingMonth } from '@/lib/domain/billing';
+import { isCardBill } from '@/lib/domain/planned';
 import { addMonthsToISO, formatBRL, formatMonthBR } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -156,7 +157,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
             card_id: cardId ?? null,
             is_recurring: false,
             is_paid: isPaid,
-            is_active: !isPlanned,
+            is_active: isCardBill({ category }) ? true : !isPlanned,
             transaction_date: r.month,
             is_installment: false,
             installment_number: null,
@@ -296,8 +297,17 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
           <p className="text-xs text-muted-foreground">
             Fica só na lista, fora de saldos, totais e gráficos
           </p>
+          {isCardBill({ category }) && (
+            <p className="text-xs text-muted-foreground">
+              Faturas de cartão não podem ser lançadas como previstas
+            </p>
+          )}
         </div>
-        <Switch checked={isPlanned} onCheckedChange={setIsPlanned} />
+        <Switch
+          checked={isPlanned}
+          disabled={isCardBill({ category })}
+          onCheckedChange={setIsPlanned}
+        />
       </div>
 
       {/* Período */}
