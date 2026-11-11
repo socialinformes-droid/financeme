@@ -46,6 +46,7 @@ export function ExtratoComparativo({
       .from('transactions')
       .select('*')
       .eq('billing_month', month)
+      .eq('is_active', true)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (!error) setMonthTxs((data ?? []) as TransactionRow[]);

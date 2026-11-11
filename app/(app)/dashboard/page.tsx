@@ -40,6 +40,7 @@ export default async function Dashboard({
     supabase
       .from('transactions')
       .select('*')
+      .eq('is_active', true)
       .gte('expense_month', startOfYear)
       .lt('expense_month', endOfYear)
       .order('transaction_date', { ascending: true }),
@@ -56,6 +57,7 @@ export default async function Dashboard({
     supabase
       .from('transactions')
       .select('*')
+      .eq('is_active', true)
       .gte('billing_month', startOfYear)
       .lt('billing_month', endOfYear),
   ]);

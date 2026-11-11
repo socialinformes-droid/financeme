@@ -30,6 +30,7 @@ export default async function CardsPage({
   const { data: txs } = await supabase
     .from('transactions')
     .select('*')
+    .eq('is_active', true)
     .gte('billing_month', startOfYear)
     .lt('billing_month', endOfYear)
     .order('billing_month', { ascending: false })

@@ -32,7 +32,11 @@ export default async function CashflowPage() {
       .select('*')
       .order('deposit_date', { ascending: false })
       .limit(2000),
-    supabase.from('transactions').select('*').eq('expense_month', currentMonthKey),
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('expense_month', currentMonthKey)
+      .eq('is_active', true),
     supabase
       .from('cashbox_withdrawals')
       .select('*')

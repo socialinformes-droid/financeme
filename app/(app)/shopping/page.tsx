@@ -22,6 +22,7 @@ export default async function ShoppingPage() {
     supabase
       .from('transactions')
       .select('billing_month,type,amount')
+      .eq('is_active', true)
       .gte('billing_month', today)
       .order('billing_month', { ascending: true }),
   ]);

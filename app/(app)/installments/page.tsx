@@ -31,11 +31,13 @@ export default async function InstallmentsPage({
     supabase
       .from('transactions')
       .select('*')
+      .eq('is_active', true)
       .eq('is_installment', true)
       .order('billing_month', { ascending: true }),
     supabase
       .from('transactions')
       .select('*')
+      .eq('is_active', true)
       .eq('is_recurring', true)
       .eq('is_installment', false)
       .not('installment_group_id', 'is', null)
