@@ -61,6 +61,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
   const [cardId, setCardId] = useState<string | undefined>();
   const [notes, setNotes] = useState('');
   const [isPaid, setIsPaid] = useState(false);
+  const [isPlanned, setIsPlanned] = useState(false);
   const [defaultAmount, setDefaultAmount] = useState(0);
 
   // Período
@@ -155,6 +156,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
             card_id: cardId ?? null,
             is_recurring: false,
             is_paid: isPaid,
+            is_active: !isPlanned,
             transaction_date: r.month,
             is_installment: false,
             installment_number: null,
@@ -183,6 +185,7 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
       setCardId(undefined);
       setNotes('');
       setIsPaid(false);
+      setIsPlanned(false);
       setDefaultAmount(0);
       setStartYear(CURRENT_YEAR);
       setStartMonth(new Date().getMonth() + 1);
@@ -285,6 +288,16 @@ export function BulkTransactionsForm({ userId, cards, categories, onDone }: Bulk
           <p className="text-xs text-muted-foreground">Aplica para todos os lançamentos criados</p>
         </div>
         <Switch checked={isPaid} onCheckedChange={setIsPaid} />
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-border/60 p-3">
+        <div>
+          <p className="text-sm font-medium">Lançar como previsto</p>
+          <p className="text-xs text-muted-foreground">
+            Fica só na lista, fora de saldos, totais e gráficos
+          </p>
+        </div>
+        <Switch checked={isPlanned} onCheckedChange={setIsPlanned} />
       </div>
 
       {/* Período */}

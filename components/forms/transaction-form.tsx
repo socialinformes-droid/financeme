@@ -35,6 +35,7 @@ const schema = z.object({
   notes: z.string().optional(),
   is_recurring: z.boolean(),
   is_paid: z.boolean(),
+  is_active: z.boolean(),
   is_installment: z.boolean(),
   total_installments: z.number().int().min(1).max(60).optional(),
   recurrence_months: z.number().int().min(1).max(120).optional(),
@@ -82,6 +83,7 @@ export function TransactionForm({
           notes: editing.notes ?? '',
           is_recurring: editing.is_recurring,
           is_paid: editing.is_paid,
+          is_active: editing.is_active,
           is_installment: false, // não é editável em modo edit
         }
       : {
@@ -93,6 +95,7 @@ export function TransactionForm({
           transaction_date: toISODate(new Date()),
           is_recurring: false,
           is_paid: false,
+          is_active: true,
           is_installment: false,
         },
   });
@@ -156,6 +159,7 @@ export function TransactionForm({
             card_id: values.card_id ?? null,
             is_recurring: values.is_recurring,
             is_paid: values.is_paid,
+            is_active: values.is_active,
             transaction_date: values.transaction_date,
           })
           .eq('id', editing.id);
@@ -178,6 +182,7 @@ export function TransactionForm({
           card,
           notes: values.notes ?? null,
           isRecurring: values.is_recurring,
+          isActive: values.is_active,
         });
         const { error } = await supabase.from('transactions').insert(rows);
         if (error) throw error;
@@ -195,6 +200,7 @@ export function TransactionForm({
           cardId: values.card_id ?? null,
           card,
           notes: values.notes ?? null,
+          isActive: values.is_active,
         });
         const { error } = await supabase.from('transactions').insert(rows);
         if (error) throw error;
@@ -214,6 +220,7 @@ export function TransactionForm({
           card_id: values.card_id ?? null,
           is_recurring: values.is_recurring,
           is_paid: values.is_paid,
+          is_active: values.is_active,
           transaction_date: values.transaction_date,
           is_installment: false,
           installment_number: null,
@@ -237,6 +244,7 @@ export function TransactionForm({
         transaction_date: toISODate(new Date()),
         is_recurring: false,
         is_paid: false,
+        is_active: true,
         is_installment: false,
       });
       onDone?.();
@@ -432,6 +440,22 @@ export function TransactionForm({
             )}
           </div>
         )}
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Lançar como previsto</p>
+            <p className="text-xs text-muted-foreground">
+              Fica só na lista, fora de saldos, totais e gráficos
+            </p>
+          </div>
+          <Controller
+            name="is_active"
+            control={form.control}
+            render={({ field }) => (
+              <Switch checked={!field.value} onCheckedChange={(v) => field.onChange(!v)} />
+            )}
+          />
+        </div>
 
         <div className="flex items-center justify-between">
           <div>

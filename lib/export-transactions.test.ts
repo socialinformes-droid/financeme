@@ -19,6 +19,7 @@ function transaction(over: Partial<TransactionRow>): TransactionRow {
     cashbox_id: null,
     is_recurring: false,
     is_paid: true,
+    is_active: true,
     transaction_date: '2026-09-05',
     is_installment: false,
     installment_number: null,

@@ -14,6 +14,7 @@ export type InstallmentInput = {
   notes?: string | null;
   isRecurring?: boolean;
   groupId?: string;
+  isActive?: boolean;
 };
 
 export type InstallmentRow = {
@@ -29,6 +30,7 @@ export type InstallmentRow = {
   card_id: string | null;
   is_recurring: boolean;
   is_paid: boolean;
+  is_active: boolean;
   transaction_date: string;
   is_installment: true;
   installment_number: number;
@@ -50,6 +52,7 @@ export type RecurrenceInput = {
   card?: CardForBilling | null;
   notes?: string | null;
   groupId?: string;
+  isActive?: boolean;
 };
 
 export type RecurrenceRow = {
@@ -65,6 +68,7 @@ export type RecurrenceRow = {
   card_id: string | null;
   is_recurring: true;
   is_paid: boolean;
+  is_active: boolean;
   transaction_date: string;
   is_installment: false;
   installment_number: null;
@@ -119,6 +123,7 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
       card_id: input.cardId ?? null,
       is_recurring: !!input.isRecurring,
       is_paid: false,
+        is_active: input.isActive ?? true,
       transaction_date: toISODate(input.startDate),
       is_installment: true,
       installment_number: i + 1,
@@ -179,6 +184,7 @@ export function createRecurringTransactions(input: RecurrenceInput): RecurrenceR
       card_id: input.cardId ?? null,
       is_recurring: true,
       is_paid: false,
+        is_active: input.isActive ?? true,
       transaction_date: toISODate(occurrenceDate),
       is_installment: false,
       installment_number: null,
@@ -222,6 +228,7 @@ export type GroupRow = {
   card_id: string | null;
   is_recurring: boolean;
   is_paid: boolean;
+  is_active: boolean;
   transaction_date: string;
   is_installment: boolean;
   installment_number: number | null;
@@ -318,6 +325,7 @@ export function groupResize(opts: {
         card_id: sample.card_id,
         is_recurring: true,
         is_paid: false,
+        is_active: sample.is_active,
         // Ocorrência recorrente é um evento novo a cada mês — desliza igual
         // expense/billing_month. Diferente do ramo `else` (parcela), onde a
         // compra é única e transaction_date fica fixo por design.
@@ -343,6 +351,7 @@ export function groupResize(opts: {
         card_id: sample.card_id,
         is_recurring: sample.is_recurring,
         is_paid: false,
+        is_active: sample.is_active,
         transaction_date: sample.transaction_date,
         is_installment: true,
         installment_number: i + 1,
