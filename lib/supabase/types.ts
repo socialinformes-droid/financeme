@@ -40,6 +40,7 @@ export type Database = {
           cashbox_id: string | null;
           is_recurring: boolean;
           is_paid: boolean;
+          is_active: boolean;
           transaction_date: string;
           is_installment: boolean;
           installment_number: number | null;
@@ -50,11 +51,12 @@ export type Database = {
         };
         Insert: Omit<
           Database['public']['Tables']['transactions']['Row'],
-          'id' | 'created_at' | 'cashbox_id'
+          'id' | 'created_at' | 'cashbox_id' | 'is_active'
         > & {
           id?: string;
           created_at?: string;
           cashbox_id?: string | null;
+          is_active?: boolean;
         };
         Update: Partial<Database['public']['Tables']['transactions']['Insert']>;
         Relationships: [];
