@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateByCategory,
   isActive,
+  isCardBill,
   parseBRLInput,
   resolveScopeIds,
   type ScopeRow,
@@ -104,5 +105,21 @@ describe('parseBRLInput', () => {
     expect(parseBRLInput('1,234.56')).toBeNull();
     expect(parseBRLInput('R$')).toBeNull();
     expect(parseBRLInput('1.2345')).toBeNull();
+  });
+});
+
+describe('parseBRLInput (bordas)', () => {
+  it('rejeita ponto solto e aceita casos limite', () => {
+    expect(parseBRLInput('1.')).toBeNull();
+    expect(parseBRLInput('.5')).toBeNull();
+    expect(parseBRLInput('10.00')).toBe(10);
+    expect(parseBRLInput('1.000')).toBe(1000);
+  });
+});
+
+describe('isCardBill', () => {
+  it('identifica linhas de fatura de cartão pela categoria', () => {
+    expect(isCardBill({ category: 'Cartão' })).toBe(true);
+    expect(isCardBill({ category: 'Mercado' })).toBe(false);
   });
 });

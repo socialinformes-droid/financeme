@@ -5,7 +5,13 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { CategoryPieChart } from '@/components/charts/category-pie-chart';
 import { CATEGORY_COLOR } from '@/lib/domain/categories';
-import { aggregateByCategory, isActive, parseBRLInput } from '@/lib/domain/planned';
+import {
+  CARD_BILL_PLANNED_HINT,
+  aggregateByCategory,
+  isActive,
+  isCardBill,
+  parseBRLInput,
+} from '@/lib/domain/planned';
 import { formatBRL, formatMonthBR } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +35,8 @@ export function CategoryView({
     return [...set].sort();
   }, [transactions]);
 
-  const currentKey = `${new Date().toISOString().slice(0, 7)}-01`;
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const [month, setMonth] = useState<string>(() =>
     months.includes(currentKey) ? currentKey : (months[months.length - 1] ?? currentKey),
   );
@@ -59,20 +66,22 @@ export function CategoryView({
   );
 
   const agg = useMemo(() => aggregateByCategory(rows, { includePlanned }), [rows, includePlanned]);
+  const effectiveSelected =
+    selected && agg.slices.some((s) => s.category === selected) ? selected : null;
   const sliceTotal = agg.slices.reduce((a, s) => a + s.value, 0);
 
   const grouped = useMemo(() => {
     const byCat = new Map<string, TransactionRow[]>();
     for (const t of rows) {
       if (t.type !== 'expense') continue;
-      if (selected && t.category !== selected) continue;
+      if (effectiveSelected && t.category !== effectiveSelected) continue;
       byCat.set(t.category, [...(byCat.get(t.category) ?? []), t]);
     }
     const order = new Map(agg.slices.map((s, i) => [s.category, i]));
     return [...byCat.entries()].sort(
       (a, b) => (order.get(a[0]) ?? 999) - (order.get(b[0]) ?? 999),
     );
-  }, [rows, selected, agg.slices]);
+  }, [rows, effectiveSelected, agg.slices]);
 
   const saveAmount = async (t: TransactionRow, raw: string) => {
     const parsed = parseBRLInput(raw);
@@ -98,6 +107,7 @@ export function CategoryView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <select
           className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+          aria-label="Mês"
           value={month}
           onChange={(e) => {
             setMonth(e.target.value);
@@ -128,10 +138,11 @@ export function CategoryView({
                 <li key={s.category}>
                   <button
                     type="button"
+                    aria-pressed={effectiveSelected === s.category}
                     onClick={() => setSelected((cur) => (cur === s.category ? null : s.category))}
                     className={cn(
                       'flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-muted',
-                      selected === s.category && 'bg-muted font-medium',
+                      effectiveSelected === s.category && 'bg-muted font-medium',
                     )}
                   >
                     <span className="flex items-center gap-2">
@@ -179,9 +190,15 @@ export function CategoryView({
               <section key={category} className="rounded-md border">
                 <header className="flex items-center justify-between border-b px-3 py-2">
                   <h3 className="text-sm font-medium">{category}</h3>
-                  <span className="font-mono text-sm tabular-nums">
-                    {formatBRL(sub.slices[0]?.value ?? 0)}
-                  </span>
+                  {sub.slices.length === 0 && sub.plannedTotal > 0 ? (
+                    <span className="font-mono text-sm tabular-nums text-muted-foreground">
+                      {formatBRL(sub.plannedTotal)} previsto
+                    </span>
+                  ) : (
+                    <span className="font-mono text-sm tabular-nums">
+                      {formatBRL(sub.slices[0]?.value ?? 0)}
+                    </span>
+                  )}
                 </header>
                 <ul className="divide-y">
                   {list.map((t) => (
@@ -196,6 +213,8 @@ export function CategoryView({
                         size="sm"
                         checked={isActive(t)}
                         onCheckedChange={() => onToggleActive(t)}
+                        disabled={isCardBill(t) && isActive(t)}
+                        title={isCardBill(t) && isActive(t) ? CARD_BILL_PLANNED_HINT : undefined}
                         aria-label={isActive(t) ? 'Marcar como previsto' : 'Ativar'}
                       />
                       <span className="min-w-0 flex-1 truncate text-sm" title={t.description}>

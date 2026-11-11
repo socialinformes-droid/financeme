@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
 import { TransactionForm } from '@/components/forms/transaction-form';
+import type { GroupRow } from '@/lib/domain/installments';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
 export type Group = {
@@ -58,9 +59,33 @@ export function InstallmentsView({
   const [, startTransition] = useTransition();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingTx, setEditingTx] = useState<TransactionRow | null>(null);
+  const [fullGroupRows, setFullGroupRows] = useState<GroupRow[]>([]);
+  const [, setLoadingGroup] = useState(false);
   const [groupContextRowId, setGroupContextRowId] = useState<string | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
+
+  // A página lista só linhas ativas; o editor de grupo precisa de TODAS
+  // (inclusive previstas) para não duplicar/orfanar linhas ao redimensionar.
+  const openGroup = async (groupId: string, contextRowId?: string) => {
+    setLoadingGroup(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('installment_group_id', groupId)
+        .order('billing_month', { ascending: true });
+      if (error) throw error;
+      setFullGroupRows((data ?? []) as GroupRow[]);
+      setGroupContextRowId(contextRowId ?? null);
+      setSelectedGroupId(groupId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar grupo');
+    } finally {
+      setLoadingGroup(false);
+    }
+  };
 
   const selectedGroup = useMemo(
     () => groups.find((g) => g.groupId === selectedGroupId) ?? null,
@@ -112,7 +137,7 @@ export function InstallmentsView({
                     key={g.groupId}
                     group={g}
                     todayKey={todayKey}
-                    onOpenGroup={() => setSelectedGroupId(g.groupId)}
+                    onOpenGroup={() => openGroup(g.groupId)}
                     onOpenParcela={(t) => setEditingTx(t)}
                   />
                 ))}
@@ -141,7 +166,7 @@ export function InstallmentsView({
                         <li key={g.groupId}>
                           <button
                             type="button"
-                            onClick={() => setSelectedGroupId(g.groupId)}
+                            onClick={() => openGroup(g.groupId)}
                             className="text-xs px-2.5 py-1 rounded-full bg-paper-dark/50 border border-rule/50 hover:bg-paper-dark/80 hover:border-rule transition-colors"
                           >
                             {g.description}
@@ -169,7 +194,7 @@ export function InstallmentsView({
                       key={g.groupId}
                       group={g}
                       todayKey={todayKey}
-                      onOpenGroup={() => setSelectedGroupId(g.groupId)}
+                      onOpenGroup={() => openGroup(g.groupId)}
                       onOpenParcela={(t) => setEditingTx(t)}
                     />
                   ))}
@@ -202,7 +227,7 @@ export function InstallmentsView({
               </SheetHeader>
               <div className="mt-4 px-4 pb-4 space-y-6">
                 <InstallmentGroupForm
-                  rows={selectedGroup.rows}
+                  rows={fullGroupRows}
                   cards={cards}
                   categories={categories}
                   contextRowId={groupContextRowId ?? undefined}
@@ -256,9 +281,8 @@ export function InstallmentsView({
                   editingTx.installment_group_id
                     ? () => {
                         const groupId = editingTx.installment_group_id;
-                        setGroupContextRowId(editingTx.id);
-                        setSelectedGroupId(groupId);
                         setEditingTx(null);
+                        if (groupId) void openGroup(groupId, editingTx.id);
                       }
                     : undefined
                 }

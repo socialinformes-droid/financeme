@@ -53,7 +53,14 @@ import { InstallmentGroupForm } from '@/components/forms/installment-group-form'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CategoryView } from '@/components/transactions/category-view';
 import { ActiveScopeDialog } from '@/components/transactions/active-scope-dialog';
-import { isActive, resolveScopeIds, type ActiveScope, type ScopeRow } from '@/lib/domain/planned';
+import {
+  CARD_BILL_PLANNED_HINT,
+  isActive,
+  isCardBill,
+  resolveScopeIds,
+  type ActiveScope,
+  type ScopeRow,
+} from '@/lib/domain/planned';
 import type { GroupRow } from '@/lib/domain/installments';
 import type { TransactionRow, CardRow, CategoryRow } from '@/lib/supabase/types';
 
@@ -331,20 +338,29 @@ export function TransactionsView({
   };
 
   const applyActive = async (ids: string[], value: boolean) => {
-    const supabase = createClient();
-    const { error } = await supabase.from('transactions').update({ is_active: value }).in('id', ids);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from('transactions').update({ is_active: value }).in('id', ids);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success(
         value
           ? `${ids.length} ativado(s)`
           : `${ids.length} marcado(s) como previsto`,
       );
       refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao atualizar lançamentos');
     }
   };
 
   const requestToggleActive = (t: TransactionRow) => {
+    if (isCardBill(t) && isActive(t)) {
+      toast.error(CARD_BILL_PLANNED_HINT);
+      return;
+    }
     if (t.installment_group_id) setScopeTarget(t);
     else void applyActive([t.id], !isActive(t));
   };
@@ -353,18 +369,26 @@ export function TransactionsView({
     const t = scopeTarget;
     if (!t || !t.installment_group_id) return;
     setScopeTarget(null);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('id,installment_group_id,billing_month')
-      .eq('installment_group_id', t.installment_group_id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id,installment_group_id,billing_month')
+        .eq('installment_group_id', t.installment_group_id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const rows = (data ?? []) as ScopeRow[];
+      const ids = resolveScopeIds(rows, t, scope);
+      if (ids.length === 0) {
+        toast.error('Nenhum lançamento encontrado para alterar');
+        return;
+      }
+      await applyActive(ids, !isActive(t));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar grupo');
     }
-    const rows = (data ?? []) as ScopeRow[];
-    const ids = resolveScopeIds(rows, t, scope);
-    await applyActive(ids, !isActive(t));
   };
 
   const openGroupEdit = async (t: TransactionRow) => {
@@ -665,9 +689,22 @@ export function TransactionsView({
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
-                        title={isActive(t) ? 'Marcar como previsto' : 'Ativar'}
+                        title={
+                          isCardBill(t) && isActive(t)
+                            ? CARD_BILL_PLANNED_HINT
+                            : isActive(t)
+                              ? 'Marcar como previsto'
+                              : 'Ativar'
+                        }
+                        aria-label={
+                          isCardBill(t) && isActive(t)
+                            ? CARD_BILL_PLANNED_HINT
+                            : isActive(t)
+                              ? 'Marcar como previsto'
+                              : 'Ativar'
+                        }
                         onClick={() => requestToggleActive(t)}
-                        disabled={pending}
+                        disabled={pending || (isCardBill(t) && isActive(t))}
                       >
                         <CalendarClock
                           className={`h-3.5 w-3.5 ${isActive(t) ? '' : 'text-amber-500'}`}

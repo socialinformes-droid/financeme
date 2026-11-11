@@ -83,7 +83,7 @@ export function TransactionForm({
           notes: editing.notes ?? '',
           is_recurring: editing.is_recurring,
           is_paid: editing.is_paid,
-          is_active: editing.is_active,
+          is_active: editing.is_active ?? true,
           is_installment: false, // não é editável em modo edit
         }
       : {

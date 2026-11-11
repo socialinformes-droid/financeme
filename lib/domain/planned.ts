@@ -22,6 +22,13 @@ export function isActive(row: { is_active?: boolean | null }): boolean {
   return row.is_active !== false;
 }
 
+export const CARD_BILL_PLANNED_HINT = 'Faturas de cartão não podem ser marcadas como previstas';
+
+/** Linha de fatura de cartão (lump, categoria 'Cartão'): não pode ser prevista. */
+export function isCardBill(row: { category: string }): boolean {
+  return row.category === 'Cartão';
+}
+
 /**
  * Agrega despesas por categoria (valor absoluto). Receitas são ignoradas.
  * `activeTotal` e `plannedTotal` somam sempre as duas populações, independente
