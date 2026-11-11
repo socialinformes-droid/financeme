@@ -18,7 +18,6 @@ import {
   CreditCard,
   ListChecks,
   ShoppingBag,
-  TrendingUp,
   PiggyBank,
   Settings,
   LogOut,
@@ -37,7 +36,6 @@ const NAV: NavItem[] = [
   { href: '/cards', label: 'Cartões', icon: CreditCard },
   { href: '/installments', label: 'Parcelas', icon: ListChecks },
   { href: '/shopping', label: 'Compras', icon: ShoppingBag },
-  { href: '/forecast', label: 'Previsão', icon: TrendingUp },
   { href: '/cashflow', label: 'Fluxo de caixa', icon: PiggyBank },
   { href: '/settings', label: 'Edição', icon: Settings },
 ];
