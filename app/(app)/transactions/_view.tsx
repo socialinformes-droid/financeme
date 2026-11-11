@@ -50,6 +50,8 @@ import {
 import { TransactionForm } from '@/components/forms/transaction-form';
 import { BulkTransactionsForm } from '@/components/forms/bulk-transactions-form';
 import { InstallmentGroupForm } from '@/components/forms/installment-group-form';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CategoryView } from '@/components/transactions/category-view';
 import { ActiveScopeDialog } from '@/components/transactions/active-scope-dialog';
 import { isActive, resolveScopeIds, type ActiveScope, type ScopeRow } from '@/lib/domain/planned';
 import type { GroupRow } from '@/lib/domain/installments';
@@ -224,6 +226,7 @@ export function TransactionsView({
     : DEFAULT_CATEGORIES.map((c) => c.name);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [view, setView] = useState<'list' | 'category'>('list');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -517,6 +520,21 @@ export function TransactionsView({
         </div>
       </header>
 
+      <Tabs value={view} onValueChange={(v) => setView(v as 'list' | 'category')}>
+        <TabsList>
+          <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsTrigger value="category">Por categoria</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {view === 'category' ? (
+        <CategoryView
+          transactions={initialTransactions}
+          onToggleActive={requestToggleActive}
+          onChanged={refresh}
+        />
+      ) : (
+        <>
       {/* Filtros */}
       <div className="grid grid-cols-2 md:grid-cols-8 gap-2">
         <div className="col-span-2 md:col-span-2 relative">
@@ -693,6 +711,8 @@ export function TransactionsView({
           </TableBody>
         </Table>
       </div>
+        </>
+      )}
 
       {/* Sheet: editar grupo (parcela ou recorrente) */}
       <Sheet
