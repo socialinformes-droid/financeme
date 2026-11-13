@@ -84,9 +84,13 @@ export type GeneratedRow = InstallmentRow | RecurrenceRow;
  *
  * - `amount` é o valor da parcela (totalAmount/N), com a última parcela ajustada
  *    para absorver os centavos de arredondamento.
- * - `expense_month` é o primeiro dia do mês da `startDate` para todas as parcelas
- *    (o gasto aconteceu agora — só o débito é diferido).
- * - `billing_month` é calculado mês a mês a partir da `startDate`.
+ * - `expense_month` desliza mês a mês a partir do mês da `startDate`: cada parcela
+ *    representa "o mês da obrigação", igual às recorrentes. Antes ficava fixo no mês
+ *    da compra em todas as parcelas, o que fazia o painel de um ano somar o valor
+ *    cheio da compra e o painel do ano seguinte ignorar as parcelas que caíam nele.
+ *    `transaction_date` continua guardando a data real da compra.
+ * - `billing_month` é calculado mês a mês a partir da `startDate` (offset constante
+ *    em relação a `expense_month`, definido pelo fechamento do cartão).
  * - `installment_group_id` é o mesmo UUID em todas, permitindo cancelar o grupo.
  */
 export function createInstallmentTransactions(input: InstallmentInput): InstallmentRow[] {
@@ -94,7 +98,7 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
   if (input.totalAmount <= 0) throw new Error('totalAmount deve ser > 0');
 
   const groupId = input.groupId ?? cryptoUUID();
-  const expenseMonth = toISODate(firstDayOfMonth(input.startDate));
+  const startExpense = toISODate(firstDayOfMonth(input.startDate));
   const startBilling = calculateBillingMonth(
     input.startDate,
     input.paymentMethod,
@@ -118,12 +122,12 @@ export function createInstallmentTransactions(input: InstallmentInput): Installm
       payment_method: input.paymentMethod,
       category: input.category,
       notes: input.notes ?? null,
-      expense_month: expenseMonth,
+      expense_month: addMonthsToISO(startExpense, i),
       billing_month: addMonthsToISO(startBilling, i),
       card_id: input.cardId ?? null,
       is_recurring: !!input.isRecurring,
       is_paid: false,
-        is_active: input.isActive ?? true,
+      is_active: input.isActive ?? true,
       transaction_date: toISODate(input.startDate),
       is_installment: true,
       installment_number: i + 1,
@@ -305,6 +309,10 @@ export function groupResize(opts: {
   // duplicata histórica (ex: dois bill em dez/26) que faria a sequência pular meses.
   const startBilling = sample.billing_month;
   if (!startBilling) throw new Error('primeira linha sem billing_month');
+  // Parcela: expense_month também desliza a partir da primeira linha (mesma
+  // convenção de createInstallmentTransactions). Fallback pro mês da compra.
+  const startExpense =
+    sample.expense_month ?? toISODate(firstDayOfMonth(new Date(`${sample.transaction_date}T12:00:00`)));
   const perAmount = Math.abs(Number(sample.amount));
   const groupId = sample.installment_group_id ?? '';
 
@@ -345,8 +353,7 @@ export function groupResize(opts: {
         payment_method: sample.payment_method,
         category: sample.category,
         notes: sample.notes,
-        expense_month:
-          sample.expense_month ?? toISODate(firstDayOfMonth(new Date(sample.transaction_date))),
+        expense_month: addMonthsToISO(startExpense, i),
         billing_month: billingMonth,
         card_id: sample.card_id,
         is_recurring: sample.is_recurring,
