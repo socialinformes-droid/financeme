@@ -78,6 +78,11 @@ export function CashflowView({
     }));
   }, [cashboxes, currentMonthKey, deposits, withdrawals]);
 
+  const totalBalance = useMemo(
+    () => enriched.reduce((sum, e) => sum + e.balance, 0),
+    [enriched],
+  );
+
   const selectedHistory = useMemo(() => {
     if (!selected) return [];
     const depositEntries = deposits
@@ -164,7 +169,7 @@ export function CashflowView({
         </Sheet>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-px bg-rule/60 border border-rule/60 rounded-lg overflow-hidden">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-rule/60 border border-rule/60 rounded-lg overflow-hidden">
         <div className="bg-card px-4 py-4">
           <p className="eyebrow truncate">Saldo previsto do mês</p>
           <p className="mt-2 font-mono text-lg md:text-xl tabular-nums text-foreground">
@@ -185,6 +190,16 @@ export function CashflowView({
             }`}
           >
             {formatBRL(allocation.unallocated)}
+          </p>
+        </div>
+        <div className="bg-card px-4 py-4">
+          <p className="eyebrow truncate">Total de caixas</p>
+          <p
+            className={`mt-2 font-mono text-lg md:text-xl tabular-nums ${
+              totalBalance >= 0 ? 'text-money-up' : 'text-money-down'
+            }`}
+          >
+            {formatBRL(totalBalance)}
           </p>
         </div>
       </section>
